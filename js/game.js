@@ -18,7 +18,7 @@ const TOON = new URLSearchParams(location.search).get('look') !== 'real';
 const $ = (id) => document.getElementById(id);
 const PL = placeById(new URLSearchParams(location.search).get('loc'));
 if (!PL) { location.replace('index.html'); return; }
-const HAS_K = PL.modes.includes('krathong'), HAS_L = PL.modes.includes('lantern'), MAIN = PL.modes[0], RIVER = PL.water === 'river';
+const HAS_K = PL.modes.includes('krathong'), HAS_L = PL.modes.includes('lantern'), MAIN = PL.modes[0], RIVER = PL.water === 'river', SEA = PL.water === 'sea', FLOW = RIVER || SEA;      // (FLOW: the water carries krathongs away - a river's current, or the sea's drift)
 document.title = `ลอยกระทง · ${PL.short}`;
 const LD = Loader('loading');
 $('ldTitle').textContent = PL.name; $('ldSub').textContent = PL.venue;
@@ -42,10 +42,12 @@ const { device, Q, HDR, DEPTH, AA } = GPU;
 // Level ground beside the water. x runs along the water, z toward it: the gate is at z = -66, the bank at about z = 46.
 // A river runs on past both ends; a pond (ตระพัง) ends some way off to either side. WL: the level of the water. NL: how many lamps at once.
 const NL = LOW ? 10 : 40, WL = -0.9, PCF = LOW ? 0 : 1, PX = 105;
-const NEARHILL = PL.far === 'city' ? 0.12 : PL.id === 'chiangmai' ? 1.7 : 0.8;
+const NEARHILL = PL.far === 'city' ? 0.12 : PL.id === 'chiangmai' ? 1.7 : PL.far === 'khohong' ? 1.6 : 0.8;
 const bankZ = (x) => 46 + 1.6 * sin(x * 0.045 + 1) * sm(10, 30, abs(x));
-const farZ = RIVER ? (x) => 136 + 5 * sin(x * 0.021 + 2) : (x) => 100 + 3 * sin(x * 0.05 + 1);
-const wetK = (x) => (RIVER ? 1 : 1 - sm(PX - 22, PX, abs(x)));
+const farZ = SEA ? () => 5000 : RIVER ? (x) => 136 + 5 * sin(x * 0.021 + 2) : (x) => 100 + 3 * sin(x * 0.05 + 1);
+const wetK = (x) => (FLOW ? 1 : 1 - sm(PX - 22, PX, abs(x)));
+// raised ground over the water: [x, z, radius, height] (Hat Yai's Khao Kho Hong; Phuket looks out over open sea)
+const ISLES = SEA ? [] : PL.far === 'khohong' ? [[-40, 255, 95, 42]] : [];      // (at Hat Yai: Khao Kho Hong, behind the park)
 // ground height; gw[0] is set to 1 where the point is under water
 const gw = [0];
 function ground(x, z) {
@@ -55,13 +57,20 @@ function ground(x, z) {
   const b = bankZ(x), f = farZ(x);
   h = mix(h, -2.8, sm(b - 1.5, b + 6, z) * (1 - sm(f - 8, f + 1.5, z)) * wetK(x));
   h += sm(f, f + 60, z) * (2 + fbm(x * 0.01, z * 0.01, 3) * 9) * NEARHILL;
+  for (const [ix, iz, ir, ih] of ISLES) { const d = hypot(x - ix, z - iz); if (d < ir) { const k = sm(ir, ir * 0.15, d); h = max(h, -3 + ih * Math.pow(k, 0.7) * (0.75 + 0.5 * fbm(x * 0.03, z * 0.03, 3)) + sm(0.15, 0.5, k) * (fbm(x * 0.12, z * 0.12, 3) - 0.35) * 9); } }      // (lumpy where the forest's crowns are)
   if (h < WL) { h = WL; gw[0] = 1; }
   return h;
 }
 // The pier (ท่าน้ำ): a wooden deck out from the bank, four steps down, a landing just above the water.
-const PIER = { x: 2.4, z0: 42.5, z1: 54, zs: 57, zp: 62.2, y: 0.5, py: WL + 0.32 };
-const EDGE = 59.4;      // from here on the landing the water is within reach
+const PIER_ZP = 62.2, PIER = { x: 2.4, z0: 42.5, z1: 54, zs: 57, zp: PIER_ZP, y: 0.5, py: WL + 0.32 };
+const BEACH = PL.water === 'sea', HATYAI = PL.id === 'hatyai', BKK = PL.id === 'bangkok';
+// Where the water is in reach: the end of the pier's landing; on a beach, the wet sand at the sea's edge (there is no pier). WATERZ: where a
+// krathong set down there comes to float; KNEELZ: where people kneel to set theirs down.
+const EDGE = BEACH ? 46.2 : 59.4, SHORE = 46.9, WATERZ = BEACH ? 48.6 : PIER_ZP + 0.5, KNEELZ = BEACH ? 46.4 : PIER_ZP - 0.5;
+// a beach's boardwalks: [x0, z0, x1, z1, the height of their planks] (built with the world, below)
+const BOARDS = [];
 const surf = (x, z) => {
+  if (BEACH) { for (const b of BOARDS) if (x > b[0] && x < b[2] && z > b[1] && z < b[3]) return b[4]; return ground(x, z); }
   if (abs(x) < 3.2 && z > PIER.zs - 0.05 && z < PIER.zp + 0.2) return PIER.py;
   if (abs(x) < PIER.x && z > PIER.z0 - 1.3 && z <= PIER.zs) {
     if (z < PIER.z0) return mix(ground(x, z), PIER.y, (z - (PIER.z0 - 1.3)) / 1.3);
@@ -87,6 +96,8 @@ const SKYL: f32 = ${f1(PL.sky)};
 const HILLS: f32 = ${f1(PL.hills)};
 const CITY: f32 = ${PL.far === 'city' ? '1.0' : '0.0'};
 const COURT: f32 = ${PL.temple === 'ruin' || PL.temple === 'park' ? '0.0' : '1.0'};
+const PAVE: f32 = ${PL.id === 'bangkok' ? '1.0' : '0.0'};
+const SAND: f32 = ${SEA ? '1.0' : '0.0'};
 const TOON: f32 = ${TOON ? '1.0' : '0.0'};
 // A block of a person: the engine's unit cube, sized, tilted forward or back about its own middle (b.w, pitch) and turned (a.w, yaw).
 // v: the place on the block, -1..1 each way (so that a face can be painted on the front of the head); ln: which face of the block this is.
@@ -126,22 +137,35 @@ struct BKO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) 
   dp = min(dp, sdb(P, vec2f(-30., 3.), vec2f(1.8, 8.)));              // between the two
   dp = min(dp, sdb(P, vec2f(11.5, -21.), vec2f(5., 25.)));            // under the stalls
   dp = min(dp, sdb(P, vec2f(13., 16.), vec2f(11., 1.6)));             // out to the lawn
-  dp = min(dp, sdb(P, vec2f(0., 42.2), vec2f(52., 2.)));              // the walk along the water
-  if (PLACE == 0) { dp = min(dp, sdb(P, vec2f(0., 34.5), vec2f(57., 10.))); }      // Rama VIII park: the wide concrete promenade by the river
-  let pave = (1. - ss(-.04, .04, dp)) * court;
+  if (SAND < .5) { dp = min(dp, sdb(P, vec2f(0., 42.2), vec2f(52., 2.))); }              // the walk along the water (on a beach: sand)
+  if (PAVE > .5) { dp = min(dp, sdb(P, vec2f(0., 34.5), vec2f(57., 10.))); }      // Rama VIII park: the wide concrete promenade by the river
+  let pave = (1. - ss(-.04, .04, dp)) * court * (1. - SAND);
   let ft = 1. - ss(.5, 1.4, px * 5.); let tq = fract(Pf / .5); let joint = mix(.8, ss(0., .05, min(min(tq.x, 1. - tq.x), min(tq.y, 1. - tq.y))), ft);
   var tile = mix(vec3f(.37, .21, .14), vec3f(.29, .17, .12), mix(.5, h2(floor(Pf / .5)), ft));
-  if (PLACE == 0) { let cq = fract(Pf / 1.5); let cj = mix(.8, ss(0., .03, min(min(cq.x, 1. - cq.x), min(cq.y, 1. - cq.y))), ft); tile = mix(vec3f(.46, .45, .42), vec3f(.40, .39, .37), mix(.5, h2(floor(Pf / 1.5) + 7.), ft)) * (.75 + .25 * cj); }
-  else if (COURT < .5) { tile = mix(vec3f(.40, .20, .11), vec3f(.30, .15, .09), mix(.5, h2(floor(Pf / .5) + 3.), ft)) * (.8 + .25 * step(.35, vn(Pf * 9.))); }      // laterite slabs, pitted
-  alb = mix(alb, tile * (.8 + .3 * n4) * (.62 + .38 * joint) * (.85 + .3 * n2), pave);
+  if (SAND > .5) { let bq = fract(Pf.x / .3); tile = mix(vec3f(.42, .30, .19), vec3f(.33, .23, .14), mix(.5, h2(vec2f(floor(Pf.x / .3), 1.)), ft)) * mix(1., .6 + .4 * ss(0., .08, min(bq, 1. - bq)), ft); }      // a boardwalk of planks over the sand
+  if (PAVE > .5) { let cq = fract(Pf / 1.5); let cj = mix(.8, ss(0., .03, min(min(cq.x, 1. - cq.x), min(cq.y, 1. - cq.y))), ft); tile = mix(vec3f(.46, .45, .42), vec3f(.40, .39, .37), mix(.5, h2(floor(Pf / 1.5) + 7.), ft)) * (.75 + .25 * cj); }
+  else if (PLACE == 1) { tile = mix(vec3f(.40, .20, .11), vec3f(.30, .15, .09), mix(.5, h2(floor(Pf / .5) + 3.), ft)) * (.8 + .25 * step(.35, vn(Pf * 9.))); }      // laterite slabs, pitted
+  alb = mix(alb, tile * (.8 + .3 * n4) * (.62 + .38 * select(joint, 1., SAND > .5)) * (.85 + .3 * n2), pave);      // (a boardwalk's planks have joints of their own)
   alb = mix(alb, vec3f(.44, .43, .40) * (.8 + .3 * n4), court * ss(-.04, .04, dp) * (1. - ss(.2, .26, dp)));
   bump = mix(bump, .3, pave); gloss = mix(gloss, .2, pave);
+  var sandK = 0.;
+  if (SAND > .5 && P.y > 110.) {      // the islands: under their trees the dark, lumpy green of the forest's canopy; a narrow beach round the foot of each
+    let cn = fbm(P * .09) * .6 + vn(P * .45) * .4;
+    let canopy = mix(vec3f(.025, .06, .03), vec3f(.07, .15, .06), ss(.3, .75, cn)) * (.8 + .3 * vn(P * 1.7));
+    let isl = ss(WL + .9, WL + 2.2, wp.y); let shore = ss(WL + .1, WL + .4, wp.y) * (1. - isl);
+    alb = mix(alb, canopy, isl); alb = mix(alb, vec3f(.68, .62, .48), shore); bump = mix(bump, .6, isl);
+  }
+  if (SAND > .5) {      // a beach: pale sand from the coconut palms down to the sea, darker and wet where the waves reach
+    let sk = max(ss(16., 27., P.y + rag * 8.), court * ss(.35, .6, vn(P * .05) + .25)) * (1. - pave);      // (sand everywhere, a patch of grass here and there under the palms)
+    let sandC = mix(vec3f(.78, .71, .55), vec3f(.66, .58, .43), pn(P * .3)) * (.86 + .22 * n3) * (.94 + .1 * vnp(Pf * 9., 2304.));
+    alb = mix(alb, sandC, sk); bump = mix(bump, .12, sk); sandK = sk;
+  }
   // down the bank the earth is dark and wet
   let mud = ss(.0, -.55, wp.y);
   alb = mix(alb, mix(vec3f(.13, .10, .07), vec3f(.07, .09, .05), ss(.3, .7, n2)) * (.7 + .5 * n3), mud); gloss = mix(gloss, .4, mud);
   if (TOON > .5) {      // the painted look: a lawn of clean, even green, the fine grit gone
     let toonG = mix(vec3f(.05, .13, .03), vec3f(.09, .2, .05), n1) * mix(.85, 1.1, n2);
-    alb = mix(alb, toonG, ss(.25, .75, tfv - .3 + rag + .5) * (1. - pave) * .75);
+    alb = mix(alb, toonG, ss(.25, .75, tfv - .3 + rag + .5) * (1. - pave) * (1. - sandK) * .75);
     let lm = dot(alb, vec3f(.3, .6, .1)); alb = mix(vec3f(lm), alb, 1.3); bump *= .35;
   }
   n = normalize(n - vec3f(bx + fbx * nk * 1.4, 0., bz + fbz * nk * 1.4) * bump);
@@ -281,6 +305,7 @@ struct BKO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) 
     let hh = i.m.z * .5; let y0 = i.lp.y + hh; var hx = i.lp.x; if (abs(i.ln.x) > .5) { hx = i.lp.z; }
     let fx = fract(hx / 3.6 + .5); let fy = fract(y0 / 5.); let fl = floor(y0 / 5.);
     alb = vec3f(.86, .72, .40) * (.9 + .1 * vn(uv * 1.5 + sd * 9.));
+    if (sd > .7) { let ph = fract(sd * 7.3); alb = select(select(select(vec3f(.92, .62, .66), vec3f(.62, .84, .74), ph > .25), vec3f(.95, .82, .45), ph > .5), vec3f(.58, .74, .9), ph > .75) * (.9 + .1 * vn(uv * 1.5)); }      // a Sino-Portuguese shophouse: pastel
     let trim = max(step(min(fx, 1. - fx), .07), max(step(fy, .07), step(.95, fy)) * step(.5, y0));
     alb = mix(alb, vec3f(.93, .91, .85), trim);
     let q = vec2f(fx - .5, fy - .42); let win = step(abs(q.x), .17) * step(-.27, q.y) * select(step(length(vec2f(q.x, q.y - .1)), .17), 1., q.y < .1);
@@ -584,6 +609,7 @@ const local = (cx, cy, cz, yaw) => {
   return { Wd, raw, put, tube, stamp, lamp: lmp, block, y: cy };
 };
 // a paper lantern on its string: the lit body, a dark cap above and below, a tassel
+const LSD = () => (HATYAI ? 0.03 + 0.15 * R() : R());      // a lantern's colour: at Hat Yai all red, as Chinese lanterns are
 const lantern = (x, y, z, sd, s = 1) => { B0(x, y, z, 0.26 * s, 0.34 * s, 0.26 * s, 50, sd, 0, 0, sd * 5); B0(x, y + 0.19 * s, z, 0.17 * s, 0.05 * s, 0.17 * s, 4, 0, 0, 0, sd * 5); B0(x, y - 0.19 * s, z, 0.17 * s, 0.05 * s, 0.17 * s, 4, 0, 0, 0, sd * 5); B0(x, y - 0.33 * s, z, 0.03, 0.22 * s, 0.03, 14); };
 // a string hung between two points, sagging, in pieces
 const string = (x0, y0, z0, x1, y1, z1, sag, n = 6, r = 0.008) => { for (let i = 0; i < n; i++) { const a = i / n, b = (i + 1) / n; T0(mix(x0, x1, a), mix(y0, y1, a) - sag * 4 * a * (1 - a), mix(z0, z1, a), r, mix(x0, x1, b), mix(y0, y1, b) - sag * 4 * b * (1 - b), mix(z0, z1, b), r, 1); } };
@@ -593,11 +619,26 @@ const tmpK = new Float32Array(80 * 10);
 const profile = (cx, y, cz, s, prof) => { for (const [y0, r0, y1, r1, m] of prof) T0(cx, y + y0 * s, cz, r0 * s, cx, y + y1 * s, cz, r1 * s, m); };
 const BELL = (m, sp) => [[1.2, 3.2, 2.6, 3.0, m], [2.6, 2.2, 3.7, 2.55, m], [3.7, 2.55, 4.8, 2.0, m], [4.8, 2.0, 5.8, 0.9, m], [5.8, 0.9, 6.8, 0.5, m], [6.8, 0.42, 11.7, 0.04, sp]];
 const RUIN = PL.temple === 'ruin', LANNA = PL.temple === 'lanna', PARK = PL.temple === 'park';
+const AFTER_STALLS = [];      // what is built of stalls before the stalls themselves are ready (see section 5)
 
 // 1. the wall round the temple, with a post every few metres; open to the water, where a low balustrade runs. Among the ruins: a low wall of laterite.
 await LD.step(RUIN ? 'กำลังบูรณะโบราณสถาน' : PARK ? 'กำลังจัดสวนริมน้ำ' : 'กำลังสร้างวัด', 42);
 const wall = (x0, z0, x1, z1, hgt = 1.9) => {
   const len = hypot(x1 - x0, z1 - z0), n = max(1, Math.round(len / 6)), ax = abs(x1 - x0) > abs(z1 - z0);
+  if (BEACH) {      // a beach: rocks at either end running down to the sea; at the back the sea wall of the beach road, white, lamp posts along it
+    if (ax) { for (let i = 0; i < len / 4; i++) { const t = (i + 0.5) / (len / 4), x = mix(x0, x1, t); B0(x, 0.45, z0, 4.02, 0.9, 0.5, 41); B0(x, 0.95, z0, 4.1, 0.12, 0.6, 41); }
+      for (let i = 0; i < len / 14; i++) { const x = mix(x0, x1, (i + 0.5) / (len / 14)); T0(x, 0, z0 - 0.6, 0.07, x, 4.5, z0 - 0.6, 0.05, 4); B0(x, 4.6, z0 - 0.6, 0.34, 0.34, 0.34, 10); lamp(x, 4.4, z0 + 0.6, 11, WARM, 0.08); } return; }
+    for (let i = 0; i < len / 2.2; i++) { const z = mix(z0, z1, (i + 0.5) / (len / 2.2)), sz = 1.6 + R() * 2.4, x = x0 + (R() - 0.5) * 1.5; B0(x, ground(x, z) + sz * 0.35, z, sz * (0.9 + R() * 0.6), sz, sz * (0.8 + R() * 0.5), 24, R(), (R() - 0.5) * 0.3, 0, R() * TAU); }
+    for (let i = 0; i < 6; i++) { const z = 46 + i * 3.5, sz = 2.5 + R() * 3; B0(x0 + (R() - 0.5) * 3, WL + sz * 0.3, z, sz * 1.3, sz, sz, 24, R(), (R() - 0.5) * 0.3, 0, R() * TAU); }      // running out into the sea
+    return;
+  }
+  if (HATYAI) {      // Hat Yai's park: a low railing of iron bars painted green, on a kerb, a lamp post every so often
+    const n3 = max(1, Math.round(len / 2.5));
+    for (let i = 0; i < n3; i++) { const t = (i + 0.5) / n3, cx = mix(x0, x1, t), cz = mix(z0, z1, t), l = len / n3 + 0.02; B0(cx, 0.15, cz, ax ? l : 0.35, 0.3, ax ? 0.35 : l, 2); B0(cx, 0.75, cz, ax ? l : 0.06, 0.9, ax ? 0.06 : l, 27, 0.64); }
+    for (let i = 0; i <= n3; i += 2) { const t = i / n3, x = mix(x0, x1, t), z = mix(z0, z1, t); B0(x, 0.65, z, 0.18, 1.3, 0.18, 2); }
+    for (let i = 1; i < len / 14; i++) { const t = i / (len / 14), x = mix(x0, x1, t), z = mix(z0, z1, t); T0(x, 0, z, 0.06, x, 3.6, z, 0.05, 4); B0(x, 3.75, z, 0.3, 0.3, 0.3, 10); lamp(x, 3.6, z, 10, WARM, 0.1); }
+    return;
+  }
   if (PARK) {      // the edge of the park, where the walker can go no further: a clipped hedge (box hedging), a flowering shrub in it now and then, a lamp post
     const n2 = max(1, Math.round(len / 3));
     for (let i = 0; i < n2; i++) { const t = (i + 0.5) / n2, cx = mix(x0, x1, t), cz = mix(z0, z1, t), l = len / n2 + 0.05, hh = 1.15 + 0.08 * sin(i * 1.7); B0(cx, hh / 2 - 0.05, cz, ax ? l : 0.95, hh, ax ? 0.95 : l, 66, R()); }
@@ -612,15 +653,29 @@ const wall = (x0, z0, x1, z1, hgt = 1.9) => {
 wall(-58, -66, -58, 44.6); wall(58, -66, 58, 44.6); wall(-58, -66, -3.4, -66); wall(3.4, -66, 58, -66);
 for (const sx of [-1, 1]) {
   if (RUIN) { for (let x = 3.4; x < 56; x += 0.9) { B0(sx * x, 0.22, 44.6, 0.9, 0.44, 0.5, 58, R()); B0(sx * (x + (R() - 0.5) * 0.3), 0.475, 44.6 + (R() - 0.5) * 0.2, 0.035, 0.07, 0.035, 10); } }      // a kerb of laterite set with candles all along it
+  else if (SEA) { if (false) for (let x = 3.6; x < 57; x += 3) { T0(sx * x, ground(sx * x, 44.6) - 0.2, 44.6, 0.05, sx * x, ground(sx * x, 44.6) + 1.3, 44.6, 0.04, 3); if (x + 3 < 57) { string(sx * x, ground(sx * x, 44.6) + 1.2, 44.6, sx * (x + 3), ground(sx * (x + 3), 44.6) + 1.2, 44.6, 0.15, 3, 0.006); B0(sx * (x + 1.5), ground(sx * (x + 1.5), 44.6) + 1.07, 44.6, 0.06, 0.07, 0.06, 63, fract(x * 0.31)); } } }      // the end of the sand the walker may go to: a line of bamboo posts strung with bulbs
   else for (let x = 3.2; x < 57; x += 2.4) { B0(sx * x, 0.42, 44.6, 0.2, 1.0, 0.2, 41); if (x + 2.4 < 57) { B0(sx * (x + 1.2), 0.9, 44.6, 2.4, 0.1, 0.16, 41); B0(sx * (x + 1.2), 0.38, 44.6, 2.4, 0.07, 0.1, 41); } }
   for (const x of [12.8, 24.8, 36.8, 48.8]) { T0(sx * x, 0.9, 44.6, 0.05, sx * x, 2.7, 44.6, 0.04, 4); lantern(sx * x, 2.95, 44.6, R(), 1.3); lamp(sx * x, 2.8, 44.4, 11, LANT, 0.1, 0.12); }
   if (RUIN) for (const x of [6.8, 18.8, 30.8, 42.8]) lamp(sx * x, 0.7, 44.3, 7, CANDLE, 0.16, 0.25);
 }
 // 2. the gate
 { const z = -66;
-  if (PARK) {      // the festival's arch: two posts, a lit sign across, lanterns hung under it
+  if (BEACH) {      // a way down to the beach through the sea wall: two posts of the wall, the name of the night on a board over it, strung with bulbs
+    for (const sx of [-1, 1]) { T0(sx * 3.2, 0, z, 0.12, sx * 3.2, 4.2, z, 0.1, 3); lamp(sx * 2.6, 3.4, z + 1.0, 10, LANT, 0.1, 0.1); }
+    B0(0, 4.0, z, 6.2, 0.9, 0.2, 67, sign(PL.gate, '#0e5c73', '#fff3cf'));
+    for (let i = 0; i <= 12; i++) B0(-3 + i * 0.5, 3.4 - 0.3 * sin(i / 12 * PI), z + 0.15, 0.08, 0.08, 0.08, 63, fract(i * 0.37));
+  }
+  else if (HATYAI) {      // a Chinese gate (ซุ้มประตูจีน): red columns, three roofs of green glazed tile stepped down from the middle, the eaves turned up, gold on the ridges
+    for (const sx of [-1, 1]) { T0(sx * 3.3, 0, z, 0.32, sx * 3.3, 5.2, z, 0.3, 19); B0(sx * 3.3, 0.35, z, 1.0, 0.7, 1.0, 2); B0(sx * 6.0, 1.9, z, 3.6, 3.8, 0.6, 41); B0(sx * 6.0, 4.05, z, 4.2, 0.9, 1.6, 9, 0.9, 0, 1); }
+    B0(0, 5.0, z, 7.2, 0.5, 0.6, 33, 0.1); B0(0, 4.25, z, 5.6, 0.9, 0.24, 67, sign(PL.gate, '#8a1010', '#ffd970'));
+    B0(0, 6.1, z, 8.4, 1.5, 2.4, 9, 0.9, 0, 1); B0(0, 6.9, z, 8.6, 0.16, 0.24, 15);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) B0(sx * 4.25, 5.55, z + sz * 1.15, 0.5, 0.12, 0.12, 15, 0, sx * 0.5);      // the turned-up corners
+    for (const sx of [-1, 1]) for (let k = 0; k < 2; k++) lantern(sx * (1.6 + k * 1.4), 4.25 - k * 0.2, z + 0.4, 0.05 + 0.1 * R(), 1.4);
+    for (const sx of [-1, 1]) lamp(sx * 2.2, 3.6, z + 1.2, 11, [2.6, 0.9, 0.4], 0.1, 0.1);
+  }
+  else if (PARK) {      // the festival's arch: two posts, a lit sign across, lanterns hung under it
     for (const sx of [-1, 1]) { B0(sx * 3.4, 2.4, z, 0.6, 4.8, 0.6, 33, 0.3); B0(sx * 3.4, 0.2, z, 1.0, 0.4, 1.0, 2); lamp(sx * 2.6, 3.4, z + 1.0, 10, LANT, 0.1, 0.1); }
-    B0(0, 5.0, z, 7.6, 1.1, 0.3, 67, sign('เทศกาลลอยกระทง กรุงเทพมหานคร', '#7a1420', '#ffe6a8')); B0(0, 5.62, z, 7.8, 0.14, 0.4, 15); B0(0, 4.4, z, 7.6, 0.14, 0.4, 15);
+    B0(0, 5.0, z, 7.6, 1.1, 0.3, 67, sign(PL.gate || 'เทศกาลลอยกระทง กรุงเทพมหานคร', '#7a1420', '#ffe6a8')); B0(0, 5.62, z, 7.8, 0.14, 0.4, 15); B0(0, 4.4, z, 7.6, 0.14, 0.4, 15);
     for (let i = 0; i < 7; i++) lantern(-2.7 + i * 0.9, 3.85 - 0.25 * sin(i / 6 * PI), z + 0.2, R(), 0.9);
   }
   else if (RUIN) { for (const sx of [-1, 1]) { B0(sx * 3.1, 1.3, z, 1.1, 2.6, 1.1, 58, R()); B0(sx * 3.1, 2.75, z, 1.3, 0.3, 1.3, 58, R()); lantern(sx * 2.2, 2.4, z + 0.8, 0.3, 1.2); lamp(sx * 2.2, 2.4, z + 1.0, 10, LANT, 0.1, 0.1); } }
@@ -649,9 +704,32 @@ function thaiHall(F, WM = 41) {
   for (const lx of [-5.6, 5.6]) { put(lx, 0.42, 7.2, 0.3, 0.25, 0.3, 10); F.lamp(lx, 0.7, 7.4, 17, [2.4, 1.8, 1.0], 0.05); }
   F.block(-8.1, -5.1, 8.1, 6.4);
 }
+// a seated Buddha calling the earth to witness, of tubes in material m (30 old stucco, 31 floodlit gold); sc: its size (1: about 5 m from the foot of
+// its lotus base); yaw: which way it faces (the frame's +z)
+function seatedBuddha(cx, cy, cz, sc, yaw, m) {
+  const F = local(cx, cy, cz, yaw), tb = (x0, a0, z0, r0, x1, a1, z1, r1, mm = m) => F.tube(x0 * sc, a0 * sc, z0 * sc, r0 * sc, x1 * sc, a1 * sc, z1 * sc, r1 * sc, mm);
+  tb(0, 0, 0.2, 2.35, 0, 0.45, 0.2, 2.0); tb(0, 0.45, 0.2, 2.0, 0, 0.6, 0.2, 2.25);                  // the lotus base
+  tb(-1.55, 1.15, 0.55, 0.55, 1.55, 1.15, 0.55, 0.55);                                              // the crossed legs
+  tb(0, 0.9, -0.2, 1.05, 0, 2.75, -0.2, 0.78);                                                      // the body
+  tb(-0.95, 2.6, -0.2, 0.32, 0.95, 2.6, -0.2, 0.32);                                                // the shoulders
+  tb(0, 2.7, -0.15, 0.3, 0, 3.0, -0.15, 0.28); tb(0, 2.95, -0.1, 0.44, 0, 3.75, -0.1, 0.4); tb(0, 3.75, -0.1, 0.4, 0, 4.0, -0.1, 0.24);
+  tb(0, 4.0, -0.1, 0.16, 0, 4.75, -0.1, 0.0);                                                       // the flame on the crown
+  tb(0.95, 2.55, -0.2, 0.22, 1.2, 1.65, 0.25, 0.19); tb(1.2, 1.65, 0.25, 0.19, 1.05, 1.15, 0.95, 0.15);      // the right hand down over the knee
+  tb(-0.95, 2.55, -0.2, 0.22, -1.05, 1.65, 0.15, 0.19); tb(-1.05, 1.65, 0.15, 0.19, -0.1, 1.4, 0.55, 0.15);  // the left in the lap
+}
+// (Phuket's beach bar and the old town's shophouses behind the beach road: see beachFront below)
 // 3. the hall. It stands along z with its doors toward the walk.
 { const F = local(-27, ground(-27, -16) - 0.3, -16, PI / 2), put = F.put, raw = F.raw;
-  if (PARK) { /* the retro market stands here (it is built with the stalls, below) */ }
+  if (BEACH) {      // a beach bar: a deck on the sand under a deep roof of palm thatch, a counter lit from below, stools, a string of bulbs
+    put(0, 0.2, 0, 12, 0.4, 7, 0, 0.6);
+    for (const lx of [-5.6, 5.6]) for (const lz of [-3.2, 3.2]) put(lx, 1.9, lz, 0.22, 3.4, 0.22, 4);
+    put(0, 4.2, 0, 13.4, 1.8, 8.6, 4, 0.2, 0, 1); put(0, 3.5, 0, 13.6, 0.12, 8.8, 4, 0.2);
+    put(0, 1.0, -1.4, 7, 1.1, 0.7, 0, 0.8); put(0, 1.6, -1.4, 7.4, 0.08, 0.9, 0, 0.3); put(0, 0.5, -1.0, 7, 0.06, 0.06, 63, 0.4);
+    for (let k = 0; k < 5; k++) put(-2.8 + k * 1.4, 0.75, -0.3, 0.36, 0.7, 0.36, 33, fract(k * 0.31));
+    for (let k = 0; k <= 16; k++) put(-6.4 + k * 0.8, 3.25, 4.3, 0.08, 0.08, 0.08, 63, fract(k * 0.37));
+    F.lamp(0, 3, 0, 13, [2.6, 1.6, 0.8], 0.06, 0.05); F.block(-6, -3.5, 6, 0);
+  }
+  else if (PARK) { /* the retro market stands here (it is built with the stalls, below) */ }
   else if (PL.temple === 'thai') thaiHall(F);
   else if (LANNA) {      // a Lanna vihara (วิหารล้านนา): low walls of dark teak stencilled in gold, roofs sweeping low in three tiers, gilded gables
     put(0, 0.7, 0, 15.5, 1.2, 9.5, 41); put(0, 3.0, 0, 12.5, 3.4, 6.6, 60, 0.3);
@@ -687,8 +765,42 @@ function thaiHall(F, WM = 41) {
     F.block(-9.1, -5.6, 9.1, 5.6);
   }
 }
+if (BEACH) {      // boardwalks over the sand, where elsewhere the walks are paved: planks across, a beam along each edge, set level a little above the sand
+  const walk = (cx, cz, hx, hz) => {      // a walk with its middle at (cx, cz), hx, hz its half width and half length; laid along its longer side
+    const along = hz >= hx, L = 2 * (along ? hz : hx), n = Math.ceil(L / 3), w = 2 * (along ? hx : hz);
+    for (let i = 0; i < n; i++) {
+      const t0 = -L / 2 + i * L / n, t1 = t0 + L / n, x0 = along ? cx - hx : cx + t0, x1 = along ? cx + hx : cx + t1, z0 = along ? cz + t0 : cz - hz, z1 = along ? cz + t1 : cz + hz;
+      let gy = -9; for (let a = 0; a <= 1; a += 0.5) for (let b = 0; b <= 1; b += 0.5) gy = max(gy, ground(mix(x0, x1, a), mix(z0, z1, b)));
+      const top = gy + 0.16, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      B0(mx, top - 0.2, mz, x1 - x0, 0.4, z1 - z0, 0, fract(i * 0.37 + cx * 0.01), 0, 0, along ? PI / 2 : 0);      // (turned so its planks run across the walk)
+      for (const e of [-1, 1]) B0(along ? cx + e * (hx - 0.06) : mx, top - 0.12, along ? mz : cz + e * (hz - 0.06), along ? 0.14 : x1 - x0, 0.3, along ? z1 - z0 : 0.14, 4);
+      BOARDS.push([x0, z0, x1, z1, top]);
+    }
+  };
+  walk(0, -14, 2.7, 52); walk(-6, -16, 15, 2.2); walk(11.5, -21, 3.0, 25); walk(13, 16, 11, 1.6);
+}
+if (BEACH) {      // behind the beach road: a row of the old town's shophouses (ตึกชิโนโปรตุกีส) in pastel colours, arched windows above, their shops lit
+  for (let x = -110; x < 110; x += 5.2) { if (abs(x) < 7) continue; const sd = 0.72 + 0.28 * R(), h = 7 + (R() < 0.3 ? 3.5 : 0); B0(x, h / 2, -78, 5.2, h, 10, 68, sd, 0, 0, 0); B0(x, 1.6, -72.9, 4.2, 3.0, 0.1, 31, R()); B0(x, h + 0.5, -78, 5.4, 1.0, 10.4, 9, 0.3, 0, 1, PI / 2); }
+  for (let x = -100; x < 100; x += 16) { T0(x, 0, -70, 0.07, x, 4.5, -70, 0.05, 4); B0(x, 4.6, -70, 0.34, 0.34, 0.34, 10); }
+}
 // 4. the chedi, candles set all round its foot
-if (PARK) {      // the krathong contest (ประกวดกระทง): the entries on two long tables under a white marquee, its edge hung with bulbs
+if (HATYAI) {      // a Chinese pavilion (ศาลาจีน) by the water: red columns on a white base, a double roof of green glazed tile, gold ridges, red lanterns hung all round
+  const cx = -30, cz = 18, y = ground(cx, cz);
+  B0(cx, y + 0.35, cz, 9, 0.7, 9, 41); B0(cx, y + 0.75, cz, 8.4, 0.1, 8.4, 2);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { T0(cx + sx * 3.3, y + 0.8, cz + sz * 3.3, 0.22, cx + sx * 3.3, y + 4.3, cz + sz * 3.3, 0.2, 19); OBST.push([cx + sx * 3.3, cz + sz * 3.3, 0.35]); }
+  B0(cx, y + 4.45, cz, 7.4, 0.3, 7.4, 33, 0.1);
+  B0(cx, y + 5.3, cz, 9.6, 1.6, 9.6, 9, 0.9, 0, 1); B0(cx, y + 5.3, cz, 9.6, 1.6, 9.6, 9, 0.9, 0, 1, PI / 2);      // a hipped roof: two gables crossed
+  B0(cx, y + 6.6, cz, 4.2, 1.6, 4.2, 9, 0.9, 0, 1); B0(cx, y + 6.6, cz, 4.2, 1.6, 4.2, 9, 0.9, 0, 1, PI / 2); B0(cx, y + 7.6, cz, 0.3, 0.7, 0.3, 15);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) B0(cx + sx * 4.7, y + 4.62, cz + sz * 4.7, 0.7, 0.14, 0.14, 15, 0, 0.5, 0, sx * sz * PI / 4);
+  for (let k = 0; k < 8; k++) { const a = k / 8 * TAU, x = cx + cos(a) * 3.6, z = cz + sin(a) * 3.6; lantern(x, y + 3.7, z, 0.05 + 0.1 * R(), 1.5); }
+  B0(cx, y + 1.25, cz, 2.2, 0.9, 1.2, 0, 0.5); for (const sx of [-1, 1]) B0(cx + sx * 1.6, y + 1.0, cz, 0.5, 0.45, 0.5, 41);      // a stone table, two stools
+  lamp(cx, y + 3.6, cz, 12, [2.6, 0.9, 0.45], 0.08, 0.1);
+} else if (BEACH) {      // seafood on the sand: five stalls in an arc facing the walk, their grills smoking, strings of bulbs between them
+  const cx = -30, cz = 22;
+  AFTER_STALLS.push(() => (PL.market || []).forEach((g, k) => { const a = (k - 2) * 0.42, x = cx + Math.sin(a) * 11, z = cz + Math.cos(a) * 4 - 4; stall(x, z, [1, 1, 3, 4, 3][k], fract(k * 0.29 + 0.1), PI + a, g); }));
+  for (let k = 0; k < 4; k++) { const a0 = (k - 2) * 0.42, a1 = a0 + 0.42; string(cx + Math.sin(a0) * 11, 3.0, cz + Math.cos(a0) * 4 - 4, cx + Math.sin(a1) * 11, 3.0, cz + Math.cos(a1) * 4 - 4, 0.4, 5); }
+  for (let k = 0; k < 6; k++) { const x = cx - 6 + (k % 3) * 6, z = cz - 9 + floor(k / 3) * 3.2; B0(x, 0.72, z, 1.2, 0.06, 1.2, 0, 0.3); B0(x, 0.36, z, 0.1, 0.72, 0.1, 4); for (const sx of [-1, 1]) B0(x + sx * 0.95, 0.24, z, 0.36, 0.48, 0.36, 33, R()); RECT.push([x - 0.7, z - 0.7, x + 0.7, z + 0.7]); }      // tables on the sand
+} else if (PARK) {      // the krathong contest (ประกวดกระทง): the entries on two long tables under a white marquee, its edge hung with bulbs
   const cx = -30, cz = 18, y = ground(cx, cz);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) T0(cx + sx * 5.8, y, cz + sz * 4.3, 0.07, cx + sx * 5.8, y + 3.2, cz + sz * 4.3, 0.06, 4);
   B0(cx, y + 3.9, cz, 12.4, 1.5, 9.6, 41, 0, 0, 1);
@@ -776,24 +888,34 @@ function stall(cx, cz, kind, sd, yaw = -PI / 2, goods = GOODS[kind]) {
   }
 }
 stall(11.5, -42, 1, 0.1); stall(11.5, -33, 4, 0.3); stall(11.5, -24, 0, 0.9); stall(11.5, -12, 2, 0.5); stall(11.5, -3, 3, 0.48);
+for (const f of AFTER_STALLS) f();
 // the retro market (ตลาดย้อนยุค) where a temple would stand: two rows of stalls facing each other across a lane hung with lanterns
-if (PARK) {
-  const OLD = [['ขนมไทยโบราณ', 'ขนมชั้น ทองหยอด ฝอยทอง ขนมครก', '#b5651d'], ['ไอติมกะทิ', 'ไอศกรีมกะทิใส่ขนมปัง ข้าวเหนียว ถั่วลิสง', '#2a7f8f'], ['ของเล่นย้อนยุค', 'ของเล่นสังกะสี กังหันลม ลูกข่าง ตุ๊กตากระดาษ', '#7a3fa0'],
+if (PARK && !BEACH) {
+  const OLD = PL.market || [['ขนมไทยโบราณ', 'ขนมชั้น ทองหยอด ฝอยทอง ขนมครก', '#b5651d'], ['ไอติมกะทิ', 'ไอศกรีมกะทิใส่ขนมปัง ข้าวเหนียว ถั่วลิสง', '#2a7f8f'], ['ของเล่นย้อนยุค', 'ของเล่นสังกะสี กังหันลม ลูกข่าง ตุ๊กตากระดาษ', '#7a3fa0'],
     ['ผ้าไทยทอมือ', 'ผ้าซิ่น ผ้าขาวม้า ผ้าคลุมไหล่', '#8e2f6e'], ['ก๋วยเตี๋ยวเรือ', 'ก๋วยเตี๋ยวเรือ ชามละ 15 บาท', '#c0392b']];
   [-24, -16, -8].forEach((z, i) => stall(-32.5, z, [1, 3, 4][i], fract(z * 0.137 + 0.3), PI / 2, OLD[i]));
   [-24, -8].forEach((z, i) => stall(-21.5, z, [4, 1][i], fract(z * 0.311 + 0.6), -PI / 2, OLD[3 + i]));
-  for (let z = -28; z <= -4; z += 4) { string(-30.4, 3.1, z, -23.6, 3.1, z, 0.45, 5); for (let i = 0; i < 5; i++) { const t = (i + 0.5) / 5; lantern(mix(-30.4, -23.6, t), 2.9 - 1.6 * t * (1 - t), z, R(), 0.8); } }
+  for (let z = -28; z <= -4; z += 4) { string(-30.4, 3.1, z, -23.6, 3.1, z, 0.45, 5); for (let i = 0; i < 5; i++) { const t = (i + 0.5) / 5; lantern(mix(-30.4, -23.6, t), 2.9 - 1.6 * t * (1 - t), z, LSD(), HATYAI ? 1.1 : 0.8); } }
 }
 // 6. lanterns over the walk: bamboo poles in pairs, a string of paper lanterns across from each to its partner, small bulbs strung on along the walk.
 //    For Yi Peng the walk is hung twice as thick, the Lanna way.
 for (let z = -58; z <= 38; z += 12) {
   for (const sx of [-1, 1]) { T0(sx * 3.7, -0.2, z, 0.06, sx * 3.7, 4.45, z, 0.045, 4); OBST.push([sx * 3.7, z, 0.3]); }
-  for (let i = 0; i < 5; i++) { const t = (i + 0.5) / 5; lantern(mix(-3.7, 3.7, t), 4.0 - 2.8 * t * (1 - t), z, R()); }
+  if (BEACH) for (let i = 0; i <= 10; i++) { const t = i / 10; B0(mix(-3.7, 3.7, t), 4.25 - 2.4 * t * (1 - t), z, 0.07, 0.08, 0.07, 63, fract(i * 0.37 + z * 0.01)); }
+  else for (let i = 0; i < 5; i++) { const t = (i + 0.5) / 5; lantern(mix(-3.7, 3.7, t), 4.0 - 2.8 * t * (1 - t), z, LSD(), HATYAI ? 1.25 : 1); }
   string(-3.7, 4.35, z, 3.7, 4.35, z, 0.7);
   lamp(0, 3.3, z, 13, LANT, 0.1, 0.12);
   if (z < 38) for (const sx of [-1, 1]) { string(sx * 3.7, 4.3, z, sx * 3.7, 4.3, z + 12, 0.6, 5, 0.006); for (let i = 1; i < 14; i++) { const t = i / 14; B0(sx * 3.7, 4.26 - 2.4 * t * (1 - t), z + 12 * t, 0.045, 0.055, 0.045, 10); } }
   if (LANNA && z < 38) { const zm = z + 6; string(-3.7, 4.2, zm, 3.7, 4.2, zm, 0.55); for (let i = 0; i < 9; i++) { const t = (i + 0.5) / 9; lantern(mix(-3.7, 3.7, t), 3.85 - 2.2 * t * (1 - t) - (i % 2) * 0.25, zm, R(), 0.85); } }
 }
+if (BEACH) {      // on a beach: longtail boats drawn up on the sand, a few more at anchor off it, their ribbons on the prow
+  // (drawn up along the shore, where the sand is nearly level from bow to stern, the hull resting on the highest of it: never sunk into the slope)
+  for (const [bx, bz, yw] of [[-46, 43.4, PI / 2 + 0.1], [-36, 43.6, PI / 2 - 0.12], [26, 43.5, PI / 2 + 0.06]]) {
+    let gy = -9; for (let t = -3.3; t <= 3.3; t += 0.55) for (const w of [-0.6, 0.6]) gy = max(gy, ground(bx + Math.sin(yw) * t + Math.cos(yw) * w, bz + Math.cos(yw) * t - Math.sin(yw) * w));
+    const F = local(bx, gy - 0.03, bz, yw); F.stamp(LONGTAIL, 0, 0, 0, R(), R()); RECT.push([bx - 3.6, bz - 0.8, bx + 3.6, bz + 0.8]);
+  }
+  for (const [bx, bz, yw] of [[-20, 60, 0.6], [14, 66, -0.4], [40, 58, 1.2]]) { const F = local(bx, WL - 0.12, bz, yw); F.stamp(LONGTAIL, 0, 0, 0, R(), R(), 1); }
+} else
 // 7. the pier: a roofed landing at the bank, the deck out over the water on piles, steps down, a landing at the water's edge. A boat lies moored beside it.
 { B0(0, 0.44, 48.25, 5, 0.12, 11.5, 0); B0(0, 0.2, 41.85, 5, 0.1, 1.4, 0, 0, -0.38);
   for (let z = 43; z <= 54.1; z += 2.75) for (const sx of [-1, 1]) B0(sx * 2.45, -0.5, z, 0.2, 4.0, 0.2, 4);
@@ -831,6 +953,8 @@ if (PL.lawn === 'lanterns') {
   T0(x - 1.2, y, z - 0.5, 0.04, x - 1.2, y + 2.6, z - 0.5, 0.035, 4); lantern(x - 1.2, y + 2.85, z - 0.5, 0.3, 1.3); lamp(x - 1.0, y + 2.4, z - 0.3, 9, [1.5, 0.95, 0.45], 0.14, 0.1);
   RECT.push([x - 1.2, z - 0.55, x + 1.2, z + 0.55]);
   // (no lanterns stand on the grass: a newcomer would take them for something to use. The people on the lawn bring their own, see movePeople.)
+} else if (PL.lawn === 'fire') {      // a fire show on the sand: a ring of torches, the dancers in the middle (their fire is drawn each frame), the crowd round
+  const [fx, fz] = LAWN; for (let k = 0; k < 12; k++) { const a = k / 12 * TAU, x = fx + cos(a) * 6.5, z = fz + sin(a) * 6.5; T0(x, 0, z, 0.05, x, 1.8, z, 0.04, 3); T0(x, 1.8, z, 0.06, x, 2.05, z, 0.001, 9); lamp(x, 2, z, 6, [2.4, 1.0, 0.25], 0.2, 0.35); }
 } else if (PL.lawn === 'stage') {
   const [sx, sz] = STAGE;
   B0(sx, 0.5, sz, 6, 1.0, 11, 0, 0.4); B0(sx - 3.05, 0.5, sz, 0.1, 1.0, 11, 61);
@@ -850,7 +974,7 @@ await LD.step('กำลังปลูกต้นไม้รอบงาน',
   for (let i = 0; i < 14; i++) { const a = i * 2.39996, r = 2 + R() * 5, x = tx + cos(a) * r, z = tz + sin(a) * r, y = 2.9 + R() * 1.6; lantern(x, y, z, R()); T0(x, y + 0.2, z, 0.006, x, y + 2.4, z, 0.006, 1); }
   lamp(tx, 3.2, tz, 14, LANT, 0.08, 0.1);
 }
-const PAVED = (x, z) => PARK && z > 23.5 - 0.5;      // Rama VIII park's concrete promenade by the river: nothing is planted on it
+const PAVED = (x, z) => BKK && z > 23.5 - 0.5;      // Rama VIII park's concrete promenade by the river: nothing is planted on it
 const freeAt = (x, z, r) => {
   if (PAVED(x, z + r * 0.5)) return false;
   for (const o of RECT) if (x > o[0] - r && x < o[2] + r && z > o[1] - r && z < o[3] + r) return false;
@@ -863,17 +987,17 @@ const freeAt = (x, z, r) => {
   if (x < -18 && x > -40 && z > -29 && z < 27) return false;
   return z < 38;
 };
-const BANK_T = RUIN ? [5, 6] : LANNA ? [0, 2] : [3, 4];
+const BANK_T = RUIN ? [5, 6] : LANNA ? [0, 2] : [3, 4];      // (a beach: coconut palms)
 { let tries = 0, placed = 0;
-  while (placed < (LOW ? 13 : PARK ? 30 : 24) && tries++ < 900) { const x = (R() - 0.5) * 108, z = -62 + R() * (PARK ? 82 : 98); if (!freeAt(x, z, 6.5)) continue; plant(TREES[(RUIN ? [0, 1, 5, 10, 6, 0, 1] : PARK ? [10, 10, 10, 1, 10, 0, 10] : [0, 1, 2, 10, 11, 0, 1])[floor(R() * 7)]], x, z, R() * TAU, PARK ? 1.1 + R() * 0.4 : 0.8 + R() * 0.5, 1, true, PARK ? 1 : 0.6); placed++; }
-  if (!PARK) for (let x = -53; x <= 53; x += 8.2) { if (abs(x) < 7 || abs(x + 18) < 5) continue; plant(TREES[BANK_T[R() < 0.5 ? 0 : 1]], x + (R() - 0.5) * 2, 38.2 + R(), R() * TAU, 0.9 + R() * 0.3, 1, true, 0.4); }
+  while (placed < (LOW ? 13 : PARK ? 30 : 24) && tries++ < 900) { const x = (R() - 0.5) * 108, z = -62 + R() * (PARK ? 82 : 98); if (!freeAt(x, z, 6.5)) continue; plant(TREES[(RUIN ? [0, 1, 5, 10, 6, 0, 1] : PARK ? (SEA ? [3, 4, 10, 3, 4, 1, 3] : [10, 10, 10, 1, 10, 0, 10]) : [0, 1, 2, 10, 11, 0, 1])[floor(R() * 7)]], x, z, R() * TAU, PARK ? 1.1 + R() * 0.4 : 0.8 + R() * 0.5, 1, true, PARK ? 1 : 0.6); placed++; }
+  if (!PARK || SEA) for (let x = -53; x <= 53; x += SEA ? 6.5 : 8.2) { if (abs(x) < 7 || abs(x + 18) < 5) continue; plant(TREES[BANK_T[R() < 0.5 ? 0 : 1]], x + (R() - 0.5) * 2, 38.2 + R(), R() * TAU, 0.9 + R() * 0.3, 1, true, 0.4); }
   for (let z = -60; z <= 34; z += LOW ? 12 : 6) for (const sx of [-1, 1]) { if (PAVED(0, z + 1.5) || abs(z + 16) < 4.5 || (sx > 0 && abs(z - 16) < 3.5) || abs(((z + 58) % 12) - 0) < 1.2) continue; plant(TREES[R() < 0.6 ? 9 : 8], sx * 4.6, z + R(), R() * TAU, 0.7 + R() * 0.3); }
   for (let i = 0; i < 9; i++) { const sx = i % 2 ? 1 : -1, z = -58 + i * 11 + R() * 4; if (freeAt(sx * 54, z, 1)) plant(TREES[7], sx * (53.5 + R()), z, R() * TAU, 0.9 + R() * 0.3, 1, true, 0.6); }
   placed = 0; tries = 0;
   while (placed < (LOW ? 22 : 80) && tries++ < 2000) { const x = (R() - 0.5) * 330, z = -125 + R() * 168; if (abs(x) < 62 && z > -70) continue; if (z > bankZ(x) - 3) continue; plant(TREES[[0, 1, 2, 10, 11, 5, 3][floor(R() * 7)]], x, z, R() * TAU, 0.8 + R() * 0.6, 2, false); placed++; }
-  const nFar = PL.far === 'city' ? 0 : LOW ? 18 : 70;
+  const nFar = PL.far === 'city' || SEA ? 0 : LOW ? 18 : 70;
   for (let i = 0; i < nFar; i++) { const x = (R() - 0.5) * 420, z = farZ(x) + 5 + R() * R() * 60; plant(TREES[[0, 1, 2, 11, 5, 6, 3, 4][floor(R() * 8)]], x, z, R() * TAU, 0.8 + R() * 0.6, 2, false); }
-  if (!RIVER) for (let i = 0; i < (LOW ? 10 : 30); i++) { const x = (R() < 0.5 ? -1 : 1) * (PX + 6 + R() * 90), z = 50 + R() * 48; plant(TREES[[0, 1, 5, 6, 10][floor(R() * 5)]], x, z, R() * TAU, 0.8 + R() * 0.5, 2, false); }
+  if (!FLOW) for (let i = 0; i < (LOW ? 10 : 30); i++) { const x = (R() < 0.5 ? -1 : 1) * (PX + 6 + R() * 90), z = 50 + R() * 48; plant(TREES[[0, 1, 5, 6, 10][floor(R() * 5)]], x, z, R() * TAU, 0.8 + R() * 0.5, 2, false); }
 }
 // 11. over the water
 if (PL.far === 'city') {
@@ -959,10 +1083,29 @@ if (PL.far === 'city') {
     for (let k = 1; k <= 13; k++) { const ty = 72 + k * 3.3; T0(bx, ty, pz, 0.13, bx, dh + 0.6, pz + 14 + k * 12.5, 0.13, 31); T0(bx, ty, pz, 0.13, bx, dh + 0.6, pz - 12 - k * 7.5, 0.13, 31); }
     for (const s of [-1, 1]) lamp(bx + s * 7, 2.5, pz - 7, 24, [3.0, 2.3, 1.4], 0.015);
   }
+} else if (SEA) {
+  // Phuket: the open Andaman sea to the horizon, fishing boats far out, each with its lamps
+  for (const [ix, iz, ir] of ISLES) {
+    for (let k = 0; k < (LOW ? 18 : 48); k++) { const a = R() * TAU, r = Math.sqrt(R()) * ir * 0.85, x = ix + cos(a) * r, z = iz + sin(a) * r; if (ground(x, z) > WL + 1.4) plant(TREES[[0, 1, 10, 11, 0, 3][floor(R() * 6)]], x, z, R() * TAU, 2.2 + R() * 1.2, 2, false); }      // a forest over the whole island
+    for (let k = 0; k < 3; k++) { const x = ix + (R() - 0.5) * ir * 0.6, z = iz - ir * 0.5 + R() * 6; B0(x, max(ground(x, z), WL) + 1.5, z, 0.35, 0.35, 0.35, 10); }
+  }
+  for (let k = 0; k < (LOW ? 10 : 22); k++) {
+    const x = (R() - 0.5) * 640, z = 110 + R() * 200, yaw = R() * TAU;
+    B0(x, WL + 0.4, z, 2.2, 0.9, 9, 25, R(), 0, 0, yaw); B0(x, WL + 1.6, z, 1.6, 1.4, 2.2, 0, R(), 0, 0, yaw);
+    for (let j = 0; j < 4; j++) B0(x + cos(yaw) * (j - 1.5) * 0.3, WL + 3.4 + (j % 2) * 0.2, z - sin(yaw) * (j - 1.5) * 0.3, 0.3, 0.3, 0.3, 10);      // squid boats: a row of bright lamps
+  }
 } else {
   // a village over the water: a few lit windows and bulbs among the trees, a string of lanterns at its landing
   for (let i = 0; i < 34; i++) { const x = (R() - 0.5) * (RIVER ? 380 : 200), z = farZ(x) + 6 + R() * 30; B0(x, ground(x, z) + 1.6 + R() * 2.4, z, 0.3, 0.3, 0.3, 10); }
   for (let i = 0; i < 16; i++) { const x = -70 + i * 2.2, z = farZ(x) + 2; lantern(x, ground(x, z) + 2.6, z, R(), 1.6); }
+  if (PL.far === 'khohong') {
+    // Hat Yai: on Khao Kho Hong behind the park a great seated Buddha, golden and floodlit, seen from all over the town; the town's buildings off to one side
+    let bx = -40, bz = 250, by = -99; for (let k = 0; k < 40; k++) { const x = -40 + (k % 8 - 3.5) * 6, z = 225 + floor(k / 8) * 8, h = ground(x, z); if (h > by) { by = h; bx = x; bz = z; } }      // on the top of the hill
+    B0(bx, by + 1, bz, 34, 6, 26, 64); B0(bx, by + 4.6, bz, 28, 2.4, 20, 64);
+    seatedBuddha(bx, by + 5.8, bz, 6.2, PI, 31);
+    for (let k = 0; k < 14; k++) { const a = k / 14 * PI + PI, x = bx + cos(a) * 20, z = bz + sin(a) * 14; B0(x, by + 0.5, z, 0.4, 0.4, 0.4, 10); }      // floodlights round it
+    for (let x = 110; x < 330;) { const w = 14 + R() * 16, z = farZ(x) + 90 + R() * 110, h = 12 + R() * 48, y = ground(x + w / 2, z); B0(x + w / 2, y + h / 2, z, w, h, 12 + R() * 10, 65, R(), 0, 0, PI); x += w + 6 + R() * 18; }
+  }
   if (PL.far === 'ruins') {
     // Sukhothai: old bell-shaped chedis over the pond, pale in the candlelight, a ring of candles at the foot of each
     for (const [x, dz, s] of [[-62, 16, 0.9], [-30, 26, 1.25], [4, 18, 0.8], [28, 30, 1.1], [58, 20, 0.95], [86, 34, 0.7], [-88, 30, 0.75]]) {
@@ -996,11 +1139,11 @@ await LD.step('กำลังรับคำอธิษฐานจากท�
 await wishesP;
 await LD.step('กำลังปล่อยกระทงลงน้ำ', 84);
 const RK = [];
-const riverZ = (x, u) => { const z0 = bankZ(x) + 3.2, z = z0 + u * u * (RIVER ? 62 : farZ(x) - z0 - 7); return abs(x) < 6 && z < 64.5 ? 64.5 + u * 8 : z; };
+const riverZ = (x, u) => { const z0 = bankZ(x) + 3.2, z = z0 + u * u * (FLOW ? 62 : farZ(x) - z0 - 7); return !BEACH && abs(x) < 6 && z < 64.5 ? 64.5 + u * 8 : z; };
 const PONDX = PX - 30;
-for (let i = 0; i < (RIVER ? (LOW ? 50 : 150) : (LOW ? 40 : 90)); i++) {
-  const x = (R() - 0.5) * (RIVER ? 300 : PONDX * 2);
-  RK.push({ x, z: riverZ(x, R()), yaw: R() * TAU, w: (R() - 0.5) * 0.3, kind: floor(R() * 4), sp: RIVER ? 0.16 + 0.14 * R() : (R() < 0.5 ? -1 : 1) * (0.03 + 0.06 * R()), lit: R() < 0.94, vz: 0, ph: R() * TAU, mine: false, wish: Wishes.pick() });
+for (let i = 0; i < (FLOW ? (LOW ? 50 : 150) : (LOW ? 40 : 90)); i++) {
+  const x = (R() - 0.5) * (FLOW ? 300 : PONDX * 2);
+  RK.push({ x, z: riverZ(x, R()), yaw: R() * TAU, w: (R() - 0.5) * 0.3, kind: floor(R() * 4), sp: SEA ? 0.04 + 0.06 * R() : RIVER ? 0.16 + 0.14 * R() : (R() < 0.5 ? -1 : 1) * (0.03 + 0.06 * R()), lit: R() < 0.94, vz: 0, ph: R() * TAU, mine: false, wish: Wishes.pick() });
 }
 // Sky lanterns in the air: x y z, speed upward, a phase for their swaying, size, kind of paper, own (one the walker let go), wish
 const SL = [];
@@ -1019,7 +1162,7 @@ const INC = [];      // the incense the walker has lit at the altar, still smoul
 // Some of the strollers buy a krathong, carry it down to the pier, kneel at the edge of the landing, light it, bow over it and set it on the
 // water (PSPOT: the places at the edge; the middle is left free for the walker), then go back to the fair.
 await LD.step('กำลังเชิญผู้คนมาเที่ยวงาน', 90);
-const PPL = [], PR = rng(7391 + PL.idx);
+const PPL = [], PR = rng(7391 + PL.idx), FIRE = [];      // FIRE: the fire dancers
 const person = (x, z, yaw, o) => {
   const kid = PR() < 0.13, hair = PR();
   const p = Object.assign({ x, z, yaw, hy: 0, s: kid ? 0.62 + 0.14 * PR() : 0.92 + 0.13 * PR(), tone: PR(), top: PR(), leg: PR(), hair, skirt: !kid && hair > 0.5 && PR() < 0.6, ph: PR() * TAU, v: 0, walk: false, hold: -1, lit: false, up: 0, lan: -1, lanW: 1 }, o);
@@ -1033,7 +1176,8 @@ if (PARK) {      // the retro market's lane (before its stalls on either hand) a
   PLINK[6].push(n0); PLINK.push([6, n0 + 1, n0 + 2, n0 + 3, n0 + 4, n0 + 5], [n0, n0 + 2], [n0, n0 + 1], [n0, n0 + 4], [n0, n0 + 3], [n0], [3, n0 + 7], [n0 + 6, 4]);
   PLINK[3].push(n0 + 6); PLINK[4].push(n0 + 7);
 }
-const N_STALL = 15, N_PIER = 17, PSPOT = [-2.5, -1.65, 1.65, 2.5].map((x) => ({ x, who: null }));
+const N_STALL = 15, N_PIER = 17, PSPOT = (BEACH ? [-11, -8, -5, 5, 8, 11] : [-2.5, -1.65, 1.65, 2.5]).map((x) => ({ x, who: null }));
+if (BEACH) { PNODE[16] = [0, 43.6, 1.5]; PNODE[17] = [0, 45.6, 2.5, 0]; }      // (on a beach the 'pier' is the sand at the sea's edge)
 const PHOP = (a) => { const hop = new Array(PNODE.length).fill(-1), q = [a]; hop[a] = a; for (let i = 0; i < q.length; i++) for (const n of PLINK[q[i]]) if (hop[n] < 0) { hop[n] = q[i]; q.push(n); } return hop; };
 const N_LAWN = PNODE.length;
 if (LSPOT.length) {      // the lantern lawn: a place round each lantern filling on the grass, where people stand watching it (and may let it go)
@@ -1054,6 +1198,10 @@ const aimAt = (p, n, rnd01) => { const N = PNODE[n], a = rnd01() * TAU, r = N[4]
   // round the lanterns filling on the lawn
   // (people on the lantern lawn are among the strollers below: they come to the lanterns, watch them, let some go and walk on)
   // before the stage: the pageant's girls on it, a crowd watching
+  if (PL.lawn === 'fire') {
+    for (let k = 0; k < 2; k++) FIRE.push(person(LAWN[0] + (k ? 1.5 : -1.5), LAWN[1], PI / 2, { fire: true, s: 1.02 }));
+    for (let k = 0; k < (LOW ? 8 : 20); k++) { const a = PR() * TAU, r = 7.6 + PR() * 2, x = LAWN[0] + cos(a) * r, z = LAWN[1] + sin(a) * r; if (canStand(x, z)) person(x, z, atan2(LAWN[0] - x, LAWN[1] - z) + (PR() - 0.5) * 0.4); }
+  }
   if (PL.lawn === 'stage') {
     for (let k = 0; k < 4; k++) person(STAGE[0] - 0.6 - (k % 2) * 0.8, STAGE[1] - 3 + k * 2, -PI / 2, { up: 1.0, skirt: true, hair: 0.6 + PR() * 0.3, s: 0.98 });
     for (let k = 0; k < (LOW ? 6 : 16); k++) { const x = 28 + PR() * 8, z = 10 + PR() * 12; if (canStand(x, z)) person(x, z, PI / 2 + (PR() - 0.5) * 0.5); }
@@ -1086,12 +1234,13 @@ function movePeople(dt, ex, ez) {
       if (p.t > 1.1 && p.hold >= 0) p.lit = true;
       if (p.t > 6.4 && p.hold >= 0) {       // afloat. (The count is kept: the krathong furthest away becomes this one, with a new wish.)
         let far = null; for (const k of RK) if (!k.mine && (!far || abs(k.x - ex) > abs(far.x - ex))) far = k;
-        if (far) { far.x = p.x; far.z = PIER.zp + 0.5; far.yaw = p.yaw; far.kind = p.hold; far.lit = true; far.vz = 0.5; far.wish = Wishes.pick(); if (!RIVER) far.sp = (Math.random() < 0.5 ? -1 : 1) * (0.03 + 0.05 * Math.random()); }
+        if (far) { far.x = p.x; far.z = WATERZ; far.yaw = p.yaw; far.kind = p.hold; far.lit = true; far.vz = 0.5; far.wish = Wishes.pick(); if (!FLOW) far.sp = (Math.random() < 0.5 ? -1 : 1) * (0.03 + 0.05 * Math.random()); }
         p.hold = -1; p.lit = false;
       }
       if (p.t > 8.1) { p.act = 0; p.kn = p.bow = p.rel = 0; p.spot.who = null; p.spot = null; p.from = N_PIER; aimAt(p, 16, Math.random); }
       continue;
     }
+    if (p.fire) { p.yaw += dt * 1.3; p.hy = 0; continue; }      // a fire dancer turns slowly as the fire goes round
     if (!p.walk || p.wait > 0) {      // standing: the head turns to whoever comes near, or wanders a little
       let want = 0.3 * sin(time * 0.35 + p.ph);
       if (hypot(ex - p.x, ez - p.z) < 3.5) { let a = atan2(ex - p.x, ez - p.z) - p.yaw; a -= Math.round(a / TAU) * TAU; if (abs(a) < 2) want = clamp(a, -1.1, 1.1); }
@@ -1109,7 +1258,7 @@ function movePeople(dt, ex, ez) {
       const N = PNODE[p.to], from = p.from === p.to ? -1 : p.from, opts = PLINK[p.to].filter((n) => n !== from), carry = p.hold >= 0; p.from = p.to;
       if (carry && p.to === N_PIER) {       // on the landing with a krathong: to a free place at the edge, or wait for one
         const free = PSPOT.filter((q) => !q.who);
-        if (free.length) { const q = free[floor(Math.random() * free.length)]; q.who = p; p.spot = q; p.act = 1; p.tx = q.x; p.tz = PIER.zp - 0.5; } else { p.wait = 2; p.look = 0; }
+        if (free.length) { const q = free[floor(Math.random() * free.length)]; q.who = p; p.spot = q; p.act = 1; p.tx = q.x; p.tz = KNEELZ; } else { p.wait = 2; p.look = 0; }
         continue;
       }
       if (!carry && p.to === N_STALL && p.s > 0.8 && Math.random() < 0.6) { p.buy = true; p.wait = 4 + Math.random() * 5; p.look = N[3]; }
@@ -1130,7 +1279,7 @@ function movePeople(dt, ex, ez) {
     const a = turnTo(p, atan2(dx, dz), dt * 3.5);
     p.v += (p.sp * (p.act === 1 ? 0.6 : 1) * max(0.15, cos(min(abs(a), PI / 2))) - p.v) * min(1, dt * 4);
     p.x += sin(p.yaw) * p.v * dt; p.z += cos(p.yaw) * p.v * dt; p.ph += p.v * dt * 4.3 / p.s;
-    if (p.z > 43) { const w = p.z > 57 ? 2.8 : 1.9; p.x = clamp(p.x, -w, w); }      // nobody is edged off the pier
+    if (p.z > 43 && !BEACH) { const w = p.z > 57 ? 2.8 : 1.9; p.x = clamp(p.x, -w, w); }      // nobody is edged off the pier
   }
 }
 // One person as blocks (12 floats a block: middle and turn, size and tilt, material, seed, skin tone, 0). In the person's own frame (x across,
@@ -1174,6 +1323,7 @@ function putPerson(n, p, coarse) {
       let ta, tf;
       if (p.hold >= 0 || p.lan >= 0) { ta = mix(0.45, 0.6, kn); tf = 1.5; }
       else if (p.up) { ta = 0.75 + side * dance; tf = ta + 1.15; }
+      else if (p.fire) { ta = 1.2 + 0.5 * sin(time * 7 + side); tf = ta + 0.3; }
       else if (bow > 0.05) { ta = mix(0, 0.3, bow); tf = mix(0.2, 2.55, bow); }
       else { ta = mix(-side * sw * 0.8 + 0.04 * sin(time * 0.9 + p.ph), 0.3, kn); tf = ta + 0.2 + 0.35 * go; }
       const sy = wY + cl * 0.4, sz = sl * 0.4;
@@ -1279,7 +1429,7 @@ function ramwong(t, i, v) {
 function updateSound() {
   if (!SND || AC.state !== 'running') { if (AC && AC.state === 'suspended' && started) AC.resume(); return; }
   const t = AC.currentTime, set = (prm, v, tc = 0.3) => prm.setTargetAtTime(v, t, tc);
-  const gs = vnoise(time * 0.12, 3.3), river = clamp(1 - (bankZ(P.x) - P.z) / 60, 0.12, 1) * (RIVER ? 1 : 0.6);
+  const gs = vnoise(time * 0.12, 3.3), river = clamp(1 - (bankZ(P.x) - P.z) / 60, 0.12, 1) * (FLOW ? 1 : 0.6);
   set(SND.wind.g, 0.003 + 0.007 * gs, 0.6); set(SND.wind.f, 200 + 120 * gs, 0.6); set(SND.leaves.g, 0.002 + 0.004 * gs * gs, 0.5);
   set(SND.water.g, 0.05 * river * river * (0.75 + 0.25 * sin(time * 0.6))); set(SND.lap.g, 0.012 * river * river * Math.pow(0.5 + 0.5 * sin(time * 1.7 + sin(time * 0.4) * 2), 3));
   if (t > SND.tCrick) { cricket(t + 0.03, 0.55); SND.tCrick = t + rnd(0.25, 1.2); }
@@ -1301,7 +1451,8 @@ const ST = { sit: null, kind: -1, lit: false, rel: -1, relFrom: null, relTo: nul
 let started = false, msgT = 0, MODAL = false;
 const say = (html, secs = 6) => { const m = $('msg'); m.innerHTML = html; m.classList.add('on'); msgT = time + secs; };
 function canStand(x, z) {
-  if (z > 41) {
+  if (BEACH && z > 41) { if (z > SHORE || abs(x) > 57) return false; }      // a beach: down the sand as far as the sea
+  else   if (z > 41) {
     if ((abs(x) < 2.15 && z <= 57.2) || (abs(x) < 2.95 && z > 56.8 && z < 61.85)) return true;
     if (z > 43.9) return false;
   }
@@ -1320,7 +1471,7 @@ function walk(dt) {
     if (canStand(P.x + dx, P.z + dz)) { P.x += dx; P.z += dz; sp = v; } else if (canStand(P.x + dx, P.z)) { P.x += dx; sp = abs(dx) / dt; } else if (canStand(P.x, P.z + dz)) { P.z += dz; sp = abs(dz) / dt; }
   }
   P.v += (sp - P.v) * min(1, dt * 8); P.bob += P.v * dt * 2.7; P.dist += sp * dt;
-  if (P.dist > 0.74) { P.dist = 0; footstep(P.z > PIER.z0 && abs(P.x) < 3.2); }
+  if (P.dist > 0.74) { P.dist = 0; footstep(!BEACH && P.z > PIER.z0 && abs(P.x) < 3.2); }
   if (ST.sit) { if (l > 0.5 && !MODAL) standUp(); else { P.y += (ST.sit.y + 0.78 - P.y) * min(1, dt * 6); return; } }
   P.y += (surf(P.x, P.z) + 1.62 - P.y) * min(1, dt * 10);
 }
@@ -1348,7 +1499,7 @@ function whatNow(eye, f) {
     ACT.tip = '<kbd>E</kbd> อธิษฐาน'; ACT.e = () => openWish('lantern'); return;
   }
   if (ST.kind >= 0) {    // a krathong: to the water's edge, the candle and incense lit, the wish, and it goes on the water
-    if (P.z < EDGE) { if (P.z > PIER.zs - 0.2) ACT.tip = 'เดินไปอีกนิด ให้ถึงริมน้ำ'; return; }
+    if (P.z < EDGE) { if (BEACH ? P.z > 42.5 : P.z > PIER.zs - 0.2) ACT.tip = BEACH ? 'เดินลงไปอีกนิด ให้ถึงริมน้ำ' : 'เดินไปอีกนิด ให้ถึงริมน้ำ'; return; }
     if (!ST.lit) { ACT.tip = '<kbd>E</kbd> จุดธูปเทียน'; ACT.e = () => { ST.lit = true; strike(); }; return; }
     ACT.tip = '<kbd>E</kbd> อธิษฐาน'; ACT.e = () => openWish('krathong'); return;
   }
@@ -1376,7 +1527,7 @@ function lightAltar() {      // on the lawn: the lantern's wick lit, and incense
   while (INC.length > 18) INC.shift();
 }
 function release() {
-  ST.rel = 0; ST.relTo = [clamp(P.x + sin(P.yaw) * 0.7, -2.6, 2.6), WL - 0.005, PIER.zp + 0.55];
+  ST.rel = 0; ST.relTo = BEACH ? [clamp(P.x + sin(P.yaw) * 0.6, -50, 50), WL - 0.005, WATERZ] : [clamp(P.x + sin(P.yaw) * 0.7, -2.6, 2.6), WL - 0.005, PIER.zp + 0.55];
   if (sndOK()) burst(AC.currentTime + 1.2, 0.5, 'bandpass', 900, 400, 1.2, 0.05);
 }
 
@@ -1564,7 +1715,7 @@ function frame(now) {
   let nD = 0, nG = 0; dynLamps.length = 0;
   const glow = (x, z, d, dxn, dzn, k) => { if (nG >= 400) return; const len = clamp(d * 0.11, 0.4, 6), wd = 0.14 + d * 0.006; GLW.set([x + dxn * (len * 0.42 + 0.08), WL + 0.012, z + dzn * (len * 0.42 + 0.08), atan2(dxn, dzn), wd, 0.01, len, 0, k, wd, len, 0], nG * 12); nG++; };
   for (const k of RK) {
-    if (RIVER) {
+    if (FLOW) {
       k.x += (k.sp + 0.05 * sin(time * 0.1 + k.ph)) * dt;
       if (k.x > 150) { if (k.mine) continue; k.x = -150; k.z = riverZ(-150, R()); k.kind = floor(R() * 4); k.wish = Wishes.pick(); }
     } else {
@@ -1574,7 +1725,7 @@ function frame(now) {
       if (!k.own && Math.random() < dt * 0.006 && hypot(k.x - ex, k.z - ez) > 45) k.wish = Wishes.pick();      // (a pond keeps its krathongs: far off, now and then one carries another wish)
     }
     k.z += (0.03 * sin(time * 0.13 + k.ph * 3) + k.vz) * dt; k.vz *= 1 - min(1, dt * 0.25); k.yaw += k.w * dt;
-    if (abs(k.x) < 4.2 && k.z < PIER.zp + 0.45) k.z = PIER.zp + 0.45;                 // the water carries them round the landing
+    if (!BEACH && abs(k.x) < 4.2 && k.z < PIER.zp + 0.45) k.z = PIER.zp + 0.45;                 // the water carries them round the landing
     const dx = ex - k.x, dz = ez - k.z, d = hypot(dx, dz), fl = 0.85 + 0.25 * vnoise(time * 9 + k.ph * 10, k.ph);
     if (nD < 8900) nD = putK(DYN, nD, KT[k.kind], k.x, WL - 0.006 + 0.006 * sin(time * 1.3 + k.ph), k.z, k.yaw, 1, k.lit, max(1, d / 14) * fl, d > (LOW ? 18 : 42));
     if (k.lit) glow(k.x, k.z, d, dx / d, dz / d, (k.mine ? 3.2 : 2.4) * fl);
@@ -1591,7 +1742,7 @@ function frame(now) {
       if (lit && d < 30 && nKL++ < 4) dynLamps.push({ x: q.kx, y: ly + 0.3, z: q.kz, r: 7, c: LANT, k: 0.15, i: 0.4 + 0.5 * fill });
     }
     if (q.hold >= 0 && nD < 8900) {
-      const a = q.rel || 0, fl = 0.85 + 0.25 * vnoise(time * 9 + q.ph * 10, q.ph), kx = q.kx, ky = mix(q.ky, WL - 0.005, a) + sin(PI * a) * 0.06, kz = mix(q.kz, PIER.zp + 0.5, a);
+      const a = q.rel || 0, fl = 0.85 + 0.25 * vnoise(time * 9 + q.ph * 10, q.ph), kx = q.kx, ky = mix(q.ky, WL - 0.005, a) + sin(PI * a) * 0.06, kz = mix(q.kz, WATERZ, a);
       nD = putK(DYN, nD, KT[q.hold], kx, ky, kz, q.yaw, 1, q.lit, max(1, d / 14) * fl, d > (LOW ? 14 : 30));
       if (q.lit && d < 25 && nKL++ < 3) dynLamps.push({ x: kx, y: ky + 0.3, z: kz, r: 4, c: CANDLE, k: 0.4, i: 0.5 * fl });
     }
@@ -1605,9 +1756,9 @@ function frame(now) {
       if (!ST.relFrom) ST.relFrom = hp; ST.rel += dt / 1.7; const a = sm(0, 1, min(ST.rel, 1));
       hp = [mix(ST.relFrom[0], ST.relTo[0], a), mix(ST.relFrom[1], ST.relTo[1], a) + sin(PI * a) * 0.12, mix(ST.relFrom[2], ST.relTo[2], a)];
       if (ST.rel >= 1) {
-        RK.push({ x: hp[0], z: hp[2], yaw: P.yaw, w: 0.12, kind: ST.kind, sp: RIVER ? 0.2 : 0.05, lit: true, vz: 0.55, ph: R() * TAU, mine: true, own: true, wish: ST.wish }); FOLLOW.o = RK[RK.length - 1]; FOLLOW.until = time + 6;
+        RK.push({ x: hp[0], z: hp[2], yaw: P.yaw, w: 0.12, kind: ST.kind, sp: SEA ? 0.07 : RIVER ? 0.2 : 0.05, lit: true, vz: 0.55, ph: R() * TAU, mine: true, own: true, wish: ST.wish }); FOLLOW.o = RK[RK.length - 1]; FOLLOW.until = time + 6;
         ST.kind = -1; ST.lit = false; ST.rel = -1; ST.relFrom = null; ST.sent++;
-        say(`กระทงของคุณลอยไปกับสายน้ำแล้ว<small>${ST.wish && !ST.wish.silent ? '“' + esc(ST.wish.text) + '”' : 'ขอให้สมดังที่ตั้งใจ'}</small>`, 8);
+        say(`${SEA ? 'กระทงของคุณลอยออกสู่ทะเลแล้ว' : 'กระทงของคุณลอยไปกับสายน้ำแล้ว'}<small>${ST.wish && !ST.wish.silent ? '“' + esc(ST.wish.text) + '”' : 'ขอให้สมดังที่ตั้งใจ'}</small>`, 8);
       }
     }
     if (ST.kind >= 0) {
@@ -1624,6 +1775,13 @@ function frame(now) {
       ST.lk = -1; ST.fill = 0; ST.auto = false; ST.alit = false; ST.lans++;
       say(`โคมลอยขึ้นฟ้าไปแล้ว<small>${ST.wish && !ST.wish.silent ? '“' + esc(ST.wish.text) + '”' : 'ปล่อยทุกข์โศกไปกับโคม'}</small>`, 8);
     } else { nD = putLantern(DYN, nD, lx, ly, lz, 1, lit, false, ST.lk); if (lit) dynLamps.push({ x: lx, y: ly + 0.3, z: lz, r: 8, c: LANT, k: 0.15, i: 0.5 + 0.5 * ST.fill }); }
+  }
+  // the fire dancers' poi: two balls of fire on chains, whirling round each hand in circles, a trail of flame behind each
+  for (const q of FIRE) for (let b = 0; b < 2; b++) { if (nD > 8970) break;
+    const sx = b ? 1 : -1, cy = cos(q.yaw), sy2 = sin(q.yaw), hx = q.x + cy * sx * 0.35 + sy2 * 0.45, hz = q.z - sy2 * sx * 0.35 + cy * 0.45, hy = q.ky + 0.15;
+    for (let tr = 0; tr < 5; tr++) { const a = time * 9 + b * PI - tr * 0.22, r = 0.55, x = hx + cy * cos(a) * r * 0.25, y = hy + sin(a) * r, z = hz - sy2 * cos(a) * r * 0.25 + cos(a) * r * 0.9 * 0;
+      const rr = 0.09 * (1 - tr * 0.16); DYN.set([x, y - rr, z, rr, x, y + rr, z, 0.001, -1, 9], nD * 10); nD++; }
+    if (b === 0) dynLamps.push({ x: hx, y: hy, z: hz, r: 9, c: [2.8, 1.3, 0.35], k: 0.15, i: 0.8 + 0.3 * sin(time * 17) });
   }
   // incense smouldering in the altar's pot
   for (const s of INC) { if (nD > 8980) break; const tx = s[0] + s[2], tz = s[1] + s[3], ty = ALT_POT[1] + 0.33; DYN.set([s[0], ALT_POT[1], s[1], 0.003, tx, ty, tz, 0.0025, -1, 16], nD * 10); nD++; DYN.set([tx, ty, tz, 0.0045, tx, ty + 0.012, tz, 0.001, -1, 9], nD * 10); nD++; }
@@ -1723,7 +1881,7 @@ function frame(now) {
       else goal = !ST.alit ? '<b>จุดธูปเทียน</b>' : '<b>อธิษฐาน</b> แล้วปล่อยโคม';
     } else if (ST.kind >= 0) {
       if (ST.rel >= 0) goal = '<b>ลอยกระทง</b>';
-      else if (P.z < EDGE) { goal = 'ถือกระทงไปที่ <b>ท่าน้ำ</b>'; tgt = [0, 60.4]; }
+      else if (P.z < EDGE) { goal = BEACH ? 'ถือกระทงลงไปที่ <b>ริมน้ำ</b>' : 'ถือกระทงไปที่ <b>ท่าน้ำ</b>'; tgt = BEACH ? [clamp(P.x, -45, 45), 46.5] : [0, 60.4]; }
       else goal = !ST.lit ? '<b>จุดธูปเทียน</b>' : '<b>อธิษฐาน</b> แล้วลอยกระทง';
     } else {
       const want = PL.modes.filter((m) => (m === 'krathong' ? !kDone : !lDone));
