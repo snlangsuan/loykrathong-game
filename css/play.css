@@ -23,6 +23,9 @@ kbd { display: inline-block; min-width: 1.5em; padding: 1px 7px; margin: 0 3px; 
 #msg.on { opacity: 1; }
 #msg small { display: block; margin-top: 6px; font-size: 15px; color: var(--dim); }
 #keys { position: fixed; left: 10px; bottom: 10px; color: rgba(255, 255, 255, .5); font-size: 12px; line-height: 1.5; pointer-events: none; z-index: 3; }
+#counts { position: fixed; left: calc(12px + env(safe-area-inset-left)); bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; gap: 12px; padding: 6px 14px; border-radius: 999px; background: var(--panel); border: 1px solid rgba(243, 200, 115, .22); color: var(--ink); font-size: 13.5px; pointer-events: none; z-index: 3; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+#counts b { color: var(--gold2); font-weight: 600; font-variant-numeric: tabular-nums; }
+body.touch #counts { bottom: auto; top: calc(56px + env(safe-area-inset-top)); left: 12px; font-size: 12px; }
 #top { position: fixed; right: calc(12px + env(safe-area-inset-right)); top: calc(12px + env(safe-area-inset-top)); display: none; gap: 8px; z-index: 6; }
 body.play #top { display: flex; }
 #top button { height: 38px; min-width: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(14, 11, 16, .55); color: var(--ink); font: 500 14px/1 var(--font); cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }

@@ -138,7 +138,9 @@ PLACES.forEach((p, i) => {
 // ---------------------------------------------------------------------------------------------- the camera: drag to move, wheel / pinch / + − to zoom
 // The world is laid out at K pixels a map unit, then moved by (ox, oy) and scaled by Z. Pins keep their size whatever the zoom (--z).
 let K = 2, Z = 1, ox = 0, oy = 0, dragged = false;
-const ZMIN = 0.6, ZMAX = 3;
+const ZMAX = 3;
+// as far out as the map still fills the whole view (no edge of the world, no empty page round it)
+const zMin = () => Math.max(view.clientWidth / (BW * K), view.clientHeight / (BH * K));
 function layout() {
   const vw = view.clientWidth, vh = view.clientHeight;
   K = Math.min(2.6, Math.max(1.1, vh / 420, vw / 1000));
@@ -151,7 +153,7 @@ function pan(x, y) {
   world.style.transform = `translate(${ox.toFixed(1)}px,${oy.toFixed(1)}px) scale(${Z.toFixed(3)})`; world.style.setProperty('--z', Z.toFixed(3));
 }
 // zoom to z keeping the point (cx, cy) of the view where it is
-function zoomAt(z, cx, cy) { z = Math.min(ZMAX, Math.max(ZMIN, z)); const wx = (cx - ox) / Z, wy = (cy - oy) / Z; Z = z; pan(cx - wx * Z, cy - wy * Z); }
+function zoomAt(z, cx, cy) { z = Math.min(ZMAX, Math.max(zMin(), z)); const wx = (cx - ox) / Z, wy = (cy - oy) / Z; Z = z; pan(cx - wx * Z, cy - wy * Z); }
 const glide = (f) => { world.classList.add('glide'); f(); clearTimeout(glide.t); glide.t = setTimeout(() => world.classList.remove('glide'), 450); };
 // bring a point of the map to the middle of the part of the view not under the card
 function focusOn(x, y, smooth = true) {
@@ -186,8 +188,8 @@ addEventListener('keydown', (e) => {
   if (e.key === '+' || e.key === '=') zoomBy(1.35); else if (e.key === '-') zoomBy(1 / 1.35);
   const m = { ArrowLeft: [80, 0], ArrowRight: [-80, 0], ArrowUp: [0, 80], ArrowDown: [0, -80] }[e.key]; if (m) { e.preventDefault(); glide(() => pan(ox + m[0], oy + m[1])); }
 });
-addEventListener('resize', () => { layout(); pan(ox, oy); });
-layout(); if (view.clientWidth < 860) Z = 0.72;
+addEventListener('resize', () => { layout(); Z = Math.min(ZMAX, Math.max(zMin(), Z)); pan(ox, oy); });
+layout(); if (view.clientWidth < 860) Z = 0.72; Z = Math.max(zMin(), Z);
 // Where the map starts: where the player is, if the browser will say (and it is in Thailand); Bangkok until then, and if it will not.
 const HOME = [100.5, 13.75];
 focusOn(...px(HOME[0], HOME[1]), false);
@@ -217,7 +219,7 @@ if (!navigator.gpu) { $('gpuNote').textContent = 'เบราว์เซอร
 await Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), new Promise((ok) => setTimeout(ok, 2500))]);
 await LD.step('กำลังรับคำอธิษฐานจากทั่วประเทศ', 55);
 await Wishes.load({ timeout: 3500 });
-if (Wishes.source === 'firebase' && Wishes.count) { $('wCount').textContent = `🏮 ${Wishes.count.toLocaleString('th-TH')} คำอธิษฐาน`; $('wCount').hidden = false; }
+Counter($('wCount'));      // how many have been floated and let go, all over the country
 await LD.step('พร้อมแล้ว', 100);
 LD.done();
 document.body.classList.add('ready');
@@ -225,7 +227,7 @@ const pre = placeById(location.hash.slice(1)); if (pre) { show(pre); focusOn(...
 // hot reload (bun run dev): the view is kept across the reload
 window.liveKeep = () => { try { sessionStorage.setItem('lk.map', JSON.stringify({ ox, oy, Z })); } catch (_) { /* not kept */ } };
 let kept = null; try { kept = JSON.parse(sessionStorage.getItem('lk.map') || 'null'); sessionStorage.removeItem('lk.map'); } catch (_) { /* none */ }
-if (kept) { Z = kept.Z; pan(kept.ox, kept.oy); }
+if (kept) { Z = Math.max(zMin(), kept.Z); pan(kept.ox, kept.oy); }
 whereAmI().then((at) => { if (!at || !inThailand(at[0], at[1])) return; markMe(at[0], at[1]); if (!chosen && !kept) focusOn(...px(at[0], at[1])); });
 
 Wishes.poll(60000);

@@ -2,15 +2,34 @@
   "rules": {
     "wishes": {
       ".read": true,
-      ".indexOn": ["t"],
+      ".indexOn": [
+        "t"
+      ],
       "$id": {
         ".write": "!data.exists()",
         ".validate": "newData.hasChildren(['text', 'place', 'kind', 't'])",
-        "text": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 120" },
-        "place": { ".validate": "newData.isString() && newData.val().matches(/^(bangkok|sukhothai|chiangmai|hatyai|phuket)$/)" },
-        "kind": { ".validate": "newData.val() === 'krathong' || newData.val() === 'lantern'" },
-        "t": { ".validate": "newData.val() === now" },
-        "$other": { ".validate": false }
+        "text": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 120"
+        },
+        "place": {
+          ".validate": "newData.isString() && newData.val().matches(/^(bangkok|sukhothai|chiangmai|hatyai|phuket)$/)"
+        },
+        "kind": {
+          ".validate": "newData.val() === 'krathong' || newData.val() === 'lantern'"
+        },
+        "t": {
+          ".validate": "newData.val() === now"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "stats": {
+      ".read": true,
+      "$kind": {
+        ".write": "$kind === 'krathong' || $kind === 'lantern'",
+        ".validate": "newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1"
       }
     }
   }

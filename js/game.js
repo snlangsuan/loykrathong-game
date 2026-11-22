@@ -1757,7 +1757,7 @@ function frame(now) {
       hp = [mix(ST.relFrom[0], ST.relTo[0], a), mix(ST.relFrom[1], ST.relTo[1], a) + sin(PI * a) * 0.12, mix(ST.relFrom[2], ST.relTo[2], a)];
       if (ST.rel >= 1) {
         RK.push({ x: hp[0], z: hp[2], yaw: P.yaw, w: 0.12, kind: ST.kind, sp: SEA ? 0.07 : RIVER ? 0.2 : 0.05, lit: true, vz: 0.55, ph: R() * TAU, mine: true, own: true, wish: ST.wish }); FOLLOW.o = RK[RK.length - 1]; FOLLOW.until = time + 6;
-        ST.kind = -1; ST.lit = false; ST.rel = -1; ST.relFrom = null; ST.sent++;
+        ST.kind = -1; ST.lit = false; ST.rel = -1; ST.relFrom = null; ST.sent++; Wishes.bump('krathong');
         say(`${SEA ? 'กระทงของคุณลอยออกสู่ทะเลแล้ว' : 'กระทงของคุณลอยไปกับสายน้ำแล้ว'}<small>${ST.wish && !ST.wish.silent ? '“' + esc(ST.wish.text) + '”' : 'ขอให้สมดังที่ตั้งใจ'}</small>`, 8);
       }
     }
@@ -1772,7 +1772,7 @@ function frame(now) {
     const lit = ST.auto || ST.alit, fh = hypot(f[0], f[2]) || 1, lx = ex + f[0] / fh * 1.35 + r[0] * 0.25 * (1 - ST.fill), lz = ez + f[2] / fh * 1.35 + r[2] * 0.25 * (1 - ST.fill), ly = ey - 1.25 + 0.75 * sm(0, 1, ST.fill) + (lit ? 0.02 * sin(time * 2.2) : 0);
     if (ST.fill >= 1) {
       const fh2 = hypot(f[0], f[2]) || 1; FOLLOW.o = launch(lx, ly, lz, true, ST.lk, ST.wish, f[0] / fh2 * 0.9, f[2] / fh2 * 0.9); FOLLOW.until = time + 9;
-      ST.lk = -1; ST.fill = 0; ST.auto = false; ST.alit = false; ST.lans++;
+      ST.lk = -1; ST.fill = 0; ST.auto = false; ST.alit = false; ST.lans++; Wishes.bump('lantern');
       say(`โคมลอยขึ้นฟ้าไปแล้ว<small>${ST.wish && !ST.wish.silent ? '“' + esc(ST.wish.text) + '”' : 'ปล่อยทุกข์โศกไปกับโคม'}</small>`, 8);
     } else { nD = putLantern(DYN, nD, lx, ly, lz, 1, lit, false, ST.lk); if (lit) dynLamps.push({ x: lx, y: ly + 0.3, z: lz, r: 8, c: LANT, k: 0.15, i: 0.5 + 0.5 * ST.fill }); }
   }
@@ -1905,6 +1905,7 @@ function frame(now) {
 function tick(now) { requestAnimationFrame(tick); try { frame(now); } catch (e) { if (!tick.failed) { tick.failed = true; Engine.fail('JS: ' + (e.stack || e)); } } }
 
 // --------------------------------------------------------------------------------------------------------- ready
+Counter($('counts'), { lantern: HAS_L });      // how many have been floated and let go, all over the country
 $('inVenue').textContent = PL.venue; $('inName').textContent = PL.name; $('inBlurb').textContent = PL.blurb;
 await LD.step('จุดเทียนรอบงาน', 96);
 resize();

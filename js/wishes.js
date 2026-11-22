@@ -6,6 +6,9 @@
 //   await Wishes.send({ text, place, kind })   ส่งคำอธิษฐาน ส่งไม่ได้ก็เก็บไว้ในเบราว์เซอร์แล้วลองส่งใหม่ครั้งหน้า
 //   Wishes.poll(ms, onNew)           ดึงข้อความใหม่เป็นระยะ
 //   Wishes.source                    'firebase' | 'offline' (ไม่ได้ตั้งค่า หรือดึงไม่สำเร็จ)
+//   Wishes.counts()                  จำนวนกระทงและโคมที่ลอยไปแล้ว { krathong, lantern } (ทันที จากที่รู้ล่าสุด)
+//   Wishes.bump(kind)                ผู้เล่นลอยกระทงหรือปล่อยโคมไปหนึ่ง: นับเพิ่ม (และบอกเซิร์ฟเวอร์ถ้ามี)
+//   Wishes.watchCounts(cb)           เรียก cb(counts) ทุกครั้งที่ตัวเลขเปลี่ยน
 //
 // ช่วงแรกใช้ Firebase Realtime Database ผ่าน REST (ไม่ต้องโหลด SDK) ถ้าจะเปลี่ยนไปใช้ API ของตัวเอง แก้แค่ BACKEND ข้างล่าง:
 //   list(limit) -> Promise<[{ id, text, place, kind, t }]>   และ   add({ text, place, kind }) -> Promise<void>
@@ -128,5 +131,50 @@ window.Wishes = (() => {
     return () => clearInterval(id);
   };
   W.sample = () => SAMPLE[Math.floor(Math.random() * SAMPLE.length)];
+
+  // ---------------------------------------------------------------------------------------------- how many have been floated and let go
+  // With a backend: its own counters (stats/krathong, stats/lantern), each raised by one on the server every time someone floats a krathong or
+  // lets a lantern go. Without one, or when it cannot be reached: a number worked out from the time - as if people all over the country floated
+  // about SIM_RATE a minute since SIM_T0 - so that it grows while one watches, has grown by as much as the time away when one comes back, and is
+  // much the same on every device; the player's own are added to it. Either way a device never shows a smaller number than it has shown before
+  // (kept in the browser for each source), even if its clock is set back.
+  // (it starts in the hundreds: SIM_BASE on SIM_T0, then about 1.5 krathongs and half a lantern a minute - a few hundred more in an evening)
+  const SIM_T0 = Date.UTC(2026, 10, 22, 12), SIM_BASE = { krathong: 860, lantern: 240 }, SIM_RATE = { krathong: 1.5, lantern: 0.5 };
+  const LS_TOP = 'lk.countTop2', LS_FLOATED = 'lk.floated';      // (2: the highest shown under the first, far larger, simulation is let go)
+  const lsObj = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (_) { return {}; } };
+  const lsPut = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* not kept */ } };
+  const KINDS = ['krathong', 'lantern'];
+  let cnt = null, cntSrc = 'offline', server = null;
+  const watchers = new Set();
+  const simAt = (t) => { const m = Math.max(0, (t - SIM_T0) / 60000), mine = lsObj(LS_FLOATED), o = {}; for (const k of KINDS) o[k] = Math.floor(SIM_BASE[k] + SIM_RATE[k] * m) + (mine[k] || 0); return o; };
+  // never less than this device has shown from the same source
+  function settle(o, src) {
+    const top = lsObj(LS_TOP), t = top[src] || {}, out = {};
+    for (const k of KINDS) out[k] = Math.max(o[k] || 0, t[k] || 0);
+    top[src] = out; lsPut(LS_TOP, top);
+    const changed = !cnt || cntSrc !== src || KINDS.some((k) => out[k] !== cnt[k]); cnt = out; cntSrc = src;
+    if (changed) for (const cb of watchers) cb(cnt);
+    return cnt;
+  }
+  const STATS = base ? {
+    async get() { const r = await fetch(`${base}/stats.json`, { cache: 'no-store' }); if (!r.ok) throw new Error('HTTP ' + r.status); const d = (await r.json()) || {}; return { krathong: +d.krathong || 0, lantern: +d.lantern || 0 }; },
+    async add(kind) { const r = await fetch(`${base}/stats.json`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [kind]: { '.sv': { increment: 1 } } }) }); if (!r.ok) throw new Error('HTTP ' + r.status); },
+  } : null;
+  async function refresh() {
+    if (STATS) { try { server = await withTimeout(STATS.get(), 5000); return settle(server, 'firebase'); } catch (_) { server = null; } }
+    return settle(simAt(Date.now()), 'sim');
+  }
+  W.counts = () => cnt || settle(simAt(Date.now()), 'sim');
+  W.bump = (kind) => {
+    kind = kind === 'lantern' ? 'lantern' : 'krathong';
+    const mine = lsObj(LS_FLOATED); mine[kind] = (mine[kind] || 0) + 1; lsPut(LS_FLOATED, mine);
+    if (STATS && server) { server[kind]++; settle(server, 'firebase'); STATS.add(kind).catch(() => {}); }
+    else settle(simAt(Date.now()), 'sim');
+  };
+  W.watchCounts = (cb) => {
+    watchers.add(cb); if (cnt) cb(cnt);
+    if (!W.watchCounts.on) { W.watchCounts.on = true; refresh(); setInterval(() => { if (!document.hidden) refresh(); }, STATS ? 30000 : 4000); addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); }); }
+    return () => watchers.delete(cb);
+  };
   return W;
 })();
