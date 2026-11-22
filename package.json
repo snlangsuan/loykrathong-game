@@ -1,0 +1,11 @@
+{
+  "name": "loykrathong-game",
+  "version": "1.0.0",
+  "description": "ลอยกระทงทั่วไทย: เลือกสถานที่จากแผนที่ เดินเที่ยวงาน ลอยกระทงหรือปล่อยโคมพร้อมคำอธิษฐาน (WebGPU วาดด้วยโค้ดทั้งหมด)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "serve": "bun scripts/serve.mjs",
+    "dev": "bun scripts/serve.mjs --dev"
+  }
+}

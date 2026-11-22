@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>ลอยกระทง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Charm:wght@400;700&family=Sarabun:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="css/ui.css">
+<link rel="stylesheet" href="css/play.css">
+</head>
+<body>
+<canvas id="c" tabindex="-1"></canvas>
+<div id="bubbles" aria-hidden="true"></div>
+<div id="hud"></div>
+<div id="goal"><span id="goalA">➤</span><span id="goalT"></span><span id="goal2"><span id="goalB">➤</span><span id="goal2T"></span></span></div>
+<div id="dot"></div>
+<div id="tip"></div>
+<div id="bar"><i></i></div>
+<div id="msg"></div>
+<div id="pad"><i></i></div>
+<div id="tb"><button id="bUse">ใช้</button></div>
+<div id="top"><button id="bMap" title="กลับไปเลือกสถานที่">← แผนที่</button><button id="bMute" aria-label="เปิด/ปิดเสียง" title="เสียง (M)">♪</button></div>
+
+<div id="intro" class="off"><div class="card">
+  <div class="eyebrow" id="inVenue"></div>
+  <h1 id="inName"></h1>
+  <p id="inBlurb"></p>
+  <div class="row"><a class="btn ghost" href="index.html">← เลือกที่อื่น</a><button class="btn" id="go">เข้างาน</button></div>
+  <div class="hint" id="hint">W A S D เดิน · เมาส์มองรอบ · E ซื้อ / ใช้ / อธิษฐาน</div>
+</div></div>
+
+<div id="wish" role="dialog" aria-modal="true" aria-labelledby="wishH">
+  <form id="wishF" autocomplete="off">
+    <h2 id="wishH">ตั้งจิตอธิษฐาน</h2>
+    <p id="wishP"></p>
+    <textarea id="wishText" maxlength="120" placeholder="พิมพ์คำอธิษฐานของคุณ…" aria-label="คำอธิษฐาน"></textarea>
+    <div class="meta"><button type="button" id="wishIdea">ขอไอเดียหน่อย</button><span id="wishN">0 / 120</span></div>
+    <div class="row"><button type="button" class="btn ghost" id="wishNo">ยกเลิก</button><button type="submit" class="btn" id="wishOk">ตกลง</button></div>
+  </form>
+</div>
+
+<div id="loading" class="loading">
+  <div class="ld-card">
+    <div class="ld-k"><div class="w"></div><div class="b"><div class="p"></div><div class="p"></div><div class="p"></div><div class="p"></div><div class="p"></div><div class="base"></div><div class="c"></div><div class="f"></div></div></div>
+    <div class="ld-eyebrow">ลอยกระทงทั่วไทย</div>
+    <div class="ld-title" id="ldTitle">กำลังเตรียมงาน</div>
+    <div class="ld-sub" id="ldSub"></div>
+    <div class="ld-bar"><i></i></div>
+    <div class="ld-row"><span class="ld-step">เริ่มต้น</span><span class="ld-pct">0%</span></div>
+    <div class="ld-err"></div>
+  </div>
+</div>
+<div id="err"></div>
+<script src="js/firebase-config.js"></script>
+<script src="js/wishes.js"></script>
+<script src="js/places.js"></script>
+<script src="js/loader.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

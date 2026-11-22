@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ลอยกระทงทั่วไทย · เลือกสถานที่</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Charm:wght@400;700&family=Sarabun:wght@300;400;500;600&display=swap">
+<link rel="stylesheet" href="css/ui.css">
+<link rel="stylesheet" href="css/map.css">
+</head>
+<body>
+<main id="view" aria-label="แผนที่ประเทศไทย ลากเพื่อเลื่อน ซูมด้วยล้อเมาส์หรือสองนิ้ว">
+  <div id="world"><svg id="map" role="img" aria-label="แผนที่ประเทศไทย"></svg><div id="pins"></div></div>
+</main>
+<header id="head"><h1>ลอยกระทงทั่วไทย</h1></header>
+<div id="chips"><span id="wCount" class="chip" hidden></span></div>
+<div id="zoom"><button id="zIn" aria-label="ซูมเข้า">+</button><button id="zOut" aria-label="ซูมออก">−</button></div>
+<div id="hintMap">แตะหมุดเพื่อเลือกสถานที่</div>
+<aside id="card" aria-live="polite">
+  <button id="cClose" aria-label="ปิด">✕</button>
+  <div class="c-eyebrow" id="cVenue"></div>
+  <h2 id="cName"></h2>
+  <div class="c-tags" id="cTags"></div>
+  <p id="cBlurb"></p>
+  <ol id="cSteps" hidden></ol>
+  <button class="btn" id="cGo">ไปเที่ยวงานนี้!</button>
+  <div id="gpuNote" hidden></div>
+</aside>
+<div id="loading" class="loading">
+  <div class="ld-card">
+    <div class="ld-k"><div class="w"></div><div class="b"><div class="p"></div><div class="p"></div><div class="p"></div><div class="p"></div><div class="p"></div><div class="base"></div><div class="c"></div><div class="f"></div></div></div>
+    <div class="ld-eyebrow">ลอยกระทงทั่วไทย</div>
+    <div class="ld-title" id="ldTitle">กำลังเตรียมงาน</div>
+    <div class="ld-sub" id="ldSub">โปรดรอสักครู่</div>
+    <div class="ld-bar"><i></i></div>
+    <div class="ld-row"><span class="ld-step">เริ่มต้น</span><span class="ld-pct">0%</span></div>
+    <div class="ld-err"></div>
+  </div>
+</div>
+<script src="js/firebase-config.js"></script>
+<script src="js/wishes.js"></script>
+<script src="js/places.js"></script>
+<script src="js/loader.js"></script>
+<script src="js/map.js"></script>
+</body>
+</html>

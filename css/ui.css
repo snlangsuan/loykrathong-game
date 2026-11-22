@@ -1,0 +1,52 @@
+/* ส่วนที่ทั้งหน้าแผนที่และหน้าเกมใช้ร่วมกัน: สี ตัวอักษร ปุ่ม หน้า loading */
+:root {
+  --gold: #f3c873; --gold2: #ffe3a3; --ink: #f6efe2; --dim: #b9ae9c; --night: #070812; --panel: rgba(14, 11, 16, .62);
+  --font: "Sarabun", "Noto Sans Thai", "Thonburi", system-ui, sans-serif; --deco: "Charm", "Sarabun", serif;
+}
+html, body { margin: 0; height: 100%; background: var(--night); color: var(--ink); font-family: var(--font); }
+* { box-sizing: border-box; }
+button { font-family: inherit; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 30px; border-radius: 999px;
+  border: 1px solid var(--gold); background: rgba(243, 200, 115, .12); color: var(--gold); font: 500 16px/1.3 var(--font);
+  cursor: pointer; text-decoration: none; transition: background .2s, color .2s, transform .1s;
+}
+.btn:hover, .btn:focus-visible { background: var(--gold); color: #1b1408; outline: none; }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .45; cursor: default; background: rgba(243, 200, 115, .08); color: var(--gold); }
+.btn.ghost { border-color: rgba(255, 255, 255, .22); color: var(--ink); background: rgba(255, 255, 255, .04); }
+.btn.ghost:hover, .btn.ghost:focus-visible { background: rgba(255, 255, 255, .14); color: #fff; }
+.btn.sm { padding: 7px 16px; font-size: 14px; }
+
+/* ---------------------------------------------------------------- loading */
+.loading {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px;
+  background: radial-gradient(ellipse at 50% 70%, #1a1530 0%, #0b0b1a 55%, #050509 100%); transition: opacity .7s;
+}
+.loading.off { opacity: 0; pointer-events: none; }
+.ld-card { width: min(420px, 100%); text-align: center; }
+.ld-eyebrow { color: var(--gold); font-size: 13px; letter-spacing: .22em; }
+.ld-title { margin: 6px 0 2px; padding-top: .25em; font: 400 clamp(40px, 9vw, 60px)/1.55 var(--deco); color: var(--gold2); text-shadow: 0 0 28px rgba(243, 200, 115, .35); }
+.ld-sub { color: var(--dim); font-size: 15px; margin-bottom: 26px; }
+.ld-bar { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.ld-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #f7a54a, var(--gold2)); transition: width .35s ease; box-shadow: 0 0 12px rgba(255, 190, 90, .7); }
+.ld-row { display: flex; justify-content: space-between; margin-top: 10px; color: var(--dim); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.ld-tip { margin-top: 28px; color: rgba(246, 239, 226, .62); font-size: 14px; line-height: 1.7; min-height: 3.4em; text-wrap: pretty; }
+.ld-tip b { color: var(--gold); font-weight: 500; }
+.ld-err { display: none; margin-top: 22px; padding: 14px 16px; border-radius: 12px; background: rgba(120, 20, 20, .35); border: 1px solid rgba(255, 120, 120, .35); color: #ffd0d0; font-size: 14.5px; line-height: 1.6; }
+.ld-err.on { display: block; }
+.ld-err .btn { margin-top: 12px; }
+/* a little krathong bobbing on the water, its candle flickering */
+.ld-k { position: relative; width: 120px; height: 86px; margin: 0 auto 8px; }
+.ld-k .w { position: absolute; left: -20px; right: -20px; bottom: 8px; height: 2px; background: linear-gradient(90deg, transparent, rgba(255, 200, 120, .45), transparent); border-radius: 2px; }
+.ld-k .b { position: absolute; left: 50%; bottom: 10px; width: 64px; height: 30px; margin-left: -32px; animation: bob 2.6s ease-in-out infinite; }
+.ld-k .p { position: absolute; bottom: 0; width: 18px; height: 26px; border-radius: 50% 50% 4px 4px / 80% 80% 4px 4px; background: linear-gradient(#ff9bb5, #c74a73); transform-origin: 50% 100%; }
+.ld-k .p:nth-child(1) { left: 2px; transform: rotate(-38deg); } .ld-k .p:nth-child(2) { left: 13px; transform: rotate(-16deg); background: linear-gradient(#ffb3c6, #d9577f); }
+.ld-k .p:nth-child(3) { left: 23px; height: 30px; } .ld-k .p:nth-child(4) { left: 33px; transform: rotate(16deg); background: linear-gradient(#ffb3c6, #d9577f); }
+.ld-k .p:nth-child(5) { left: 44px; transform: rotate(38deg); }
+.ld-k .base { position: absolute; left: 4px; right: 4px; bottom: -4px; height: 9px; border-radius: 0 0 40px 40px; background: #2e5a24; }
+.ld-k .c { position: absolute; left: 50%; bottom: 26px; width: 4px; height: 16px; margin-left: -2px; background: #efe3b3; border-radius: 2px; }
+.ld-k .f { position: absolute; left: 50%; bottom: 41px; width: 9px; height: 14px; margin-left: -4.5px; border-radius: 50% 50% 50% 50% / 65% 65% 35% 35%; background: radial-gradient(circle at 50% 70%, #fff6d0, #ffb347 55%, rgba(255, 120, 30, 0) 75%); box-shadow: 0 0 22px 8px rgba(255, 160, 60, .45); animation: flick .18s ease-in-out infinite alternate; }
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(2deg); } }
+@keyframes flick { from { transform: scaleY(1) translateX(0); opacity: .95; } to { transform: scaleY(1.12) translateX(.6px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ld-k .b, .ld-k .f { animation: none; } .loading { transition: none; } }

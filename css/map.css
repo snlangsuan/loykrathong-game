@@ -1,0 +1,83 @@
+/* หน้าแผนที่แบบเกมมือถือ: แผนที่เต็มจอ ลากเลื่อนและซูมได้ หมุดเด้งลอยขึ้นมา แผงข้อมูลเด้งขึ้นเมื่อเลือกหมุด */
+[hidden] { display: none !important; }
+html, body { overflow: hidden; background: #0a2238; overscroll-behavior: none; }
+#view { position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+#view.grab { cursor: grabbing; }
+#world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --z: 1; }
+#world.glide { transition: transform .45s cubic-bezier(.2, .8, .3, 1); }
+#map { display: block; width: 100%; height: 100%; }
+#map .sea { fill: rgba(190, 215, 235, .4); font: italic 500 15px var(--font); letter-spacing: .2em; }
+#map .waves path { animation: wave 4s ease-in-out infinite; }
+@keyframes wave { 0%, 100% { opacity: .9; transform: translateX(0); } 50% { opacity: .35; transform: translateX(4px); } }
+#map .foam { animation: foam 3s linear infinite; }
+@keyframes foam { to { stroke-dashoffset: -32; } }
+#map .boat { transform-box: fill-box; transform-origin: center; animation: boat 7s ease-in-out infinite; }
+#map .b2 { animation-duration: 9s; animation-delay: -3s; } #map .b3 { animation-duration: 8s; animation-delay: -5s; }
+@keyframes boat { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(26px, -3px); } }
+
+/* the pins: a gold medallion on a short stem with its name over it, rising out of the warm glow on the ground one after another, then hovering */
+#pins { position: absolute; inset: 0; pointer-events: none; }
+#map .cityglow { animation: glow 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes glow { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.15); } }
+.mpin { position: absolute; width: 0; height: 0; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; outline: none; transform: scale(calc(1 / var(--z))); transform-origin: 0 0; }
+.mpin .ring { position: absolute; left: -22px; top: -8px; width: 44px; height: 16px; border-radius: 50%; border: 1.5px solid rgba(255, 220, 140, .9); animation: ring 2.2s ease-out infinite; animation-delay: var(--d); }
+.mpin .shadow { position: absolute; left: -12px; top: -4px; width: 24px; height: 8px; border-radius: 50%; background: rgba(0, 0, 0, .45); animation: shad 2.6s ease-in-out infinite; animation-delay: calc(var(--d) + .9s); }
+.mpin .fl { position: absolute; left: 0; bottom: 4px; display: flex; flex-direction: column; align-items: center; opacity: 0; transform: translateX(-50%);
+  animation: pop 1s cubic-bezier(.2, 1.35, .4, 1) forwards, bob 2.6s ease-in-out infinite; animation-delay: var(--d), calc(var(--d) + 1s); }
+body:not(.ready) .mpin .fl { animation-play-state: paused; }
+.mpin .badge { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; background: radial-gradient(circle at 50% 35%, #3a2a1a, #1a120c 70%); border: 2px solid var(--gold);
+  box-shadow: 0 0 0 4px rgba(243, 200, 115, .16), 0 0 22px rgba(255, 180, 80, .55), 0 6px 14px rgba(0, 0, 0, .5); transition: transform .2s, box-shadow .2s; }
+.mpin .badge svg { width: 32px; height: 32px; filter: drop-shadow(0 0 6px rgba(255, 170, 70, .7)); }
+.mpin .tail { width: 2px; height: 22px; background: linear-gradient(var(--gold), rgba(243, 200, 115, 0)); }
+.mpin .lbl { margin-bottom: 8px; padding: 3px 12px 4px; border-radius: 999px; background: rgba(14, 11, 16, .72); color: var(--gold2); border: 1px solid rgba(243, 200, 115, .45); font: 600 15px/1.3 var(--font); white-space: nowrap; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.mpin:hover .badge, .mpin:focus-visible .badge { transform: scale(1.08); }
+.mpin.on .badge { transform: scale(1.14); background: radial-gradient(circle at 50% 35%, #5a3f1f, #2a1a0c 70%); box-shadow: 0 0 0 5px rgba(243, 200, 115, .3), 0 0 36px rgba(255, 190, 90, .95), 0 6px 14px rgba(0, 0, 0, .5); }
+.mpin.on .lbl { background: var(--gold); color: #1b1408; }
+@keyframes pop { 0% { opacity: 0; transform: translate(-50%, 40px) scale(.5); } 50% { opacity: 1; } 100% { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
+@keyframes shad { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.7); opacity: .5; } }
+@keyframes ring { 0% { transform: scale(.4); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
+#map .mist { animation: mist 30s ease-in-out infinite alternate; } #map .mist.d2 { animation-duration: 40s; animation-direction: alternate-reverse; }
+@keyframes mist { from { transform: translateX(-50px); } to { transform: translateX(70px); } }
+
+/* where the player is: a soft blue dot, pulsing */
+.me { position: absolute; width: 0; height: 0; pointer-events: none; transform: scale(calc(1 / var(--z))); transform-origin: 0 0; }
+.me i { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border-radius: 50%; background: #6cc4ff; border: 2.5px solid #fff; box-shadow: 0 0 0 0 rgba(108, 196, 255, .6); animation: me 2s ease-out infinite; }
+.me span { position: absolute; left: 12px; top: -11px; padding: 1px 8px; border-radius: 999px; background: rgba(14, 11, 16, .7); color: #cfe9ff; font: 500 12px/1.5 var(--font); white-space: nowrap; }
+@keyframes me { 0% { box-shadow: 0 0 0 0 rgba(108, 196, 255, .6); } 100% { box-shadow: 0 0 0 18px rgba(108, 196, 255, 0); } }
+
+/* the title and the buttons over the map, as in the game */
+#head { position: fixed; left: 0; right: 0; top: 0; padding: calc(6px + env(safe-area-inset-top)) 0 28px; pointer-events: none; z-index: 3; text-align: center; background: linear-gradient(rgba(5, 12, 24, .8), rgba(5, 12, 24, 0)); }
+#head h1 { margin: 0; padding-top: .2em; font: 700 clamp(34px, 5vw, 52px)/1.6 var(--deco); color: var(--gold2); white-space: nowrap; text-shadow: 0 0 24px rgba(243, 200, 115, .45), 0 2px 10px rgba(0, 0, 0, .8); }
+#chips { position: fixed; right: calc(14px + env(safe-area-inset-right)); top: calc(16px + env(safe-area-inset-top)); z-index: 3; }
+.chip { display: inline-block; padding: 6px 14px; border-radius: 999px; background: var(--panel); color: var(--ink); border: 1px solid rgba(243, 200, 115, .3); font: 500 14px/1.3 var(--font); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+#zoom { position: fixed; right: calc(14px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; z-index: 3; }
+#zoom button { width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(14, 11, 16, .6); color: var(--ink); font: 400 24px/1 var(--font); cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+#zoom button:hover { border-color: var(--gold); color: var(--gold); }
+#hintMap { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 8px 18px; border-radius: 999px; background: var(--panel); color: var(--ink); border: 1px solid rgba(243, 200, 115, .25); font: 500 15px var(--font); z-index: 3; pointer-events: none; transition: opacity .3s; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+body.picked #hintMap { opacity: 0; }
+
+/* the card: slides in from the right (up from below on a phone) */
+#card { position: fixed; right: calc(16px + env(safe-area-inset-right)); top: 50%; width: 360px; max-height: calc(100vh - 40px); overflow: auto; padding: 20px 22px; border-radius: 22px; background: rgba(16, 12, 18, .78); color: var(--ink); border: 1px solid rgba(243, 200, 115, .35);
+  box-shadow: 0 0 50px rgba(255, 170, 70, .14), 0 20px 50px rgba(0, 0, 0, .5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); z-index: 4; opacity: 0; pointer-events: none;
+  transform: translate(30px, -50%); transition: transform .4s cubic-bezier(.2, .9, .3, 1), opacity .3s; }
+#card.on { transform: translate(0, -50%); opacity: 1; pointer-events: auto; }
+#cClose { position: absolute; right: 12px; top: 12px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .05); color: var(--dim); font: 400 14px/1 var(--font); cursor: pointer; }
+#cClose:hover { color: var(--gold); border-color: var(--gold); }
+.c-eyebrow { color: var(--gold); font-size: 13px; letter-spacing: .06em; padding-right: 36px; }
+#card h2 { margin: 8px 0 4px; padding-top: .25em; font: 700 40px/1.6 var(--deco); color: var(--gold2); }
+.c-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.c-tags span { padding: 2px 11px; border-radius: 999px; font-size: 13px; border: 1px solid rgba(243, 200, 115, .4); color: var(--gold); }
+.c-tags span.main { background: rgba(243, 200, 115, .16); }
+#cBlurb { margin: 0 0 18px; color: #e5dccb; font-size: 15px; line-height: 1.7; text-wrap: pretty; }
+#cGo { width: 100%; padding: 12px; font-size: 17px; }
+#gpuNote { margin-top: 10px; color: #ffb8a8; font-size: 13px; }
+
+@media (max-width: 860px) {
+  #card { left: 10px; right: 10px; top: auto; bottom: calc(10px + env(safe-area-inset-bottom)); width: auto; max-height: 50vh; transform: translateY(30px); }
+  #card.on { transform: translateY(0); }
+  #zoom { bottom: auto; top: calc(80px + env(safe-area-inset-top)); }
+  .mpin .badge { width: 44px; height: 44px; } .mpin .badge svg { width: 28px; height: 28px; } .mpin .lbl { font-size: 13.5px; }
+  #head h1 { font-size: 32px; }
+}
+@media (prefers-reduced-motion: reduce) { .mpin .fl { animation: none; opacity: 1; } .mpin .shadow, .mpin .ring, #map .boat, #map .mist, #map .cityglow, #map .waves path, #map .foam { animation: none; } #world.glide, #card { transition: none; } }
