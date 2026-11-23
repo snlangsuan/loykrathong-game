@@ -225,6 +225,10 @@ struct BKO { @builtin(position) cp: vec4f, @location(0) wp: vec3f, @location(1) 
   else if (mi == 31) { alb = vec3f(.64, .62, .56) * (.78 + .3 * vn(i.wp.xy * 1.7 + i.wp.z)); alb = mix(alb, vec3f(.27, .26, .23), ss(.58, .82, vn(i.wp.xz * .9 + i.wp.y * 1.3)) * .7); }      // old stucco, darkened with age
   else if (mi == 32) { alb = vec3f(.85, .7, .3); emi = vec3f(1., .72, .32) * .8; }                                    // a cable of the bridge, floodlit
   else if (mi == 33) { alb = vec3f(.80, .78, .74) * (.85 + .2 * fur); emi = vec3f(1., .88, .66) * (.28 + .12 * v); }      // white concrete or plaster under floodlights (the bridge's pylon, the fort)
+  else if (mi >= 38 && mi <= 40) {      // the three-coloured cloth round a spirit tree: pink, yellow, green satin, a sheen along its folds
+    var cc = vec3f(.86, .30, .52); if (mi == 39) { cc = vec3f(.92, .74, .14); } if (mi == 40) { cc = vec3f(.18, .58, .26); }
+    alb = cc * (.8 + .3 * sin(i.uv.x * 60. + v * 4.)); emi = cc * .05;
+  }
   let E = g.sunCol.rgb * shadow(i.wp + n * .08);
   var c = alb * (E * max(dot(nb, L), 0.) + sky(nb) * .8 + head(i.wp, nb)) + emi;
 `,
@@ -377,6 +381,13 @@ fn festC(h: f32) -> vec3f {      // what people wear to the fair: cream and whit
 @fragment fn fsBlock(i: BKO) -> @location(0) vec4f {
   let mat = i32(i.m.x + .5); let sd = i.m.y; let v = i.v; let ln = i.ln; var alb = vec3f(.5);
   let front = ln.z > .5; let side = abs(ln.x) > .5;
+  if (mat == 9) {      // a ghost: a shadow darker than the night, only its edge catching a little of the sky; it comes and goes in a stipple (sd: how much is there)
+    if (h2(floor(i.cp.xy * .5) + floor(g.cam.w * 14.) * vec2f(7.1, 3.7)) > sd) { discard; }
+    let gn = normalize(i.n); var c = vec3f(.003, .004, .007) + pow(1. - max(dot(gn, normalize(g.cam.xyz - i.wp)), 0.), 3.) * vec3f(.025, .04, .05);
+    let ex = floor(clamp(v.x * .5 + .5, 0., .999) * 12.); let ey = floor(clamp(v.y * .5 + .5, 0., .999) * 12.);
+    if (i.m.w > .5 && front && ey == 5. && (ex == 3. || ex == 8.)) { c = vec3f(.9, .05, .03) * (.6 + .4 * sin(g.cam.w * 3.)); }
+    return vec4f(fogged(c, i.wp), 1.);
+  }
   // the place on the face in a grid of 12 x 12 (0, 0 at the lower left): faces and patterns are drawn in it like pixel art
   var fu = v.x; if (side) { fu = v.z; } if (abs(ln.y) > .5) { fu = v.x; }
   let gx = floor(clamp(fu * .5 + .5, 0., .999) * 12.); let gy = floor(clamp(v.y * .5 + .5, 0., .999) * 12.);
@@ -987,6 +998,27 @@ const freeAt = (x, z, r) => {
   if (x < -18 && x > -40 && z > -29 && z < 27) return false;
   return z < 38;
 };
+// the old tree with three-coloured cloth (ผ้าสามสี: pink, yellow, green) tied round its trunk, as is done for a tree a spirit is said to live in;
+// at its foot a little shelf of offerings: candles, a garland, incense. Off to one side of the fair, where it is darker (a ghost is seen there: section 6b)
+const SPIRIT = (() => {
+  for (const [x, z] of [[-47, -38], [46, -46], [-48, 28], [47, 24], [-47, -8], [47, -12], [-30, -50], [30, -52]]) {
+    if (!freeAt(x, z, 5) || PAVED(x, z)) continue;
+    const y = ground(x, z), SC = 1.35, fx = x < 0 ? 1 : -1, S = TREES[10].segs;      // (fx: the side toward the middle of the fair, where people pass)
+    plant(TREES[10], x, z, 0, SC, 1, true, 0);
+    const trunk = (h) => { const hl = h / SC; for (let k = 0; k < 6; k++) { const q = k * 10; if (hl <= S[q + 5] || k === 5) { const t = clamp((hl - S[q + 1]) / (S[q + 5] - S[q + 1]), 0, 1); return [x + mix(S[q], S[q + 4], t) * SC, z + mix(S[q + 2], S[q + 6], t) * SC, mix(S[q + 3], S[q + 7], t) * SC]; } } };
+    [37, 38, 39].forEach((m, k) => { const h = 1.0 + k * 0.14, a = trunk(h), b = trunk(h + 0.14); T0(a[0], y + h, a[1], a[2] + 0.03, b[0], y + h + 0.14, b[1], b[2] + 0.03, m); });
+    const rr = 0.75;
+    const sx = x + fx * 1.3, FL = [];
+    B0(sx, 0.5, z, 0.5, 0.05, 0.9, 0); B0(sx, 0.24, z - 0.35, 0.06, 0.48, 0.06, 2); B0(sx, 0.24, z + 0.35, 0.06, 0.48, 0.06, 2);
+    for (const dz of [-0.3, 0.3]) { const cy = y + 0.52; T0(sx, cy, z + dz, 0.022, sx, cy + 0.16, z + dz, 0.02, 14); FL.push([sx, cy + 0.16, z + dz]); }      // (their flames: drawn in the frame, for they may go out)
+    for (let k = 0; k < 10; k++) { const a = k / 10 * TAU, b = (k + 1) / 10 * TAU, cy = y + 0.55; T0(sx + cos(a) * 0.1, cy, z + sin(a) * 0.1, 0.03, sx + cos(b) * 0.1, cy, z + sin(b) * 0.1, 0.03, 11); }      // a marigold garland
+    for (const dz of [-0.06, 0, 0.06]) T0(sx - fx * 0.05, y + 0.52, z + dz, 0.003, sx - fx * 0.07, y + 0.82, z + dz * 1.5, 0.0025, 16);      // incense
+    const lt = lamp(sx, y + 0.75, z, 4.5, CANDLE, 0.35, 0.35);
+    OBST.push([x, z, 1.25]); RECT.push([sx - 0.35, z - 0.5, sx + 0.35, z + 0.5]);
+    return { x, z, y, rr, fl: FL, lamp: lt, out: -1, back: 0, lit: 1 };
+  }
+  return null;
+})();
 const BANK_T = RUIN ? [5, 6] : LANNA ? [0, 2] : [3, 4];      // (a beach: coconut palms)
 { let tries = 0, placed = 0;
   while (placed < (LOW ? 13 : PARK ? 30 : 24) && tries++ < 900) { const x = (R() - 0.5) * 108, z = -62 + R() * (PARK ? 82 : 98); if (!freeAt(x, z, 6.5)) continue; plant(TREES[(RUIN ? [0, 1, 5, 10, 6, 0, 1] : PARK ? (SEA ? [3, 4, 10, 3, 4, 1, 3] : [10, 10, 10, 1, 10, 0, 10]) : [0, 1, 2, 10, 11, 0, 1])[floor(R() * 7)]], x, z, R() * TAU, PARK ? 1.1 + R() * 0.4 : 0.8 + R() * 0.5, 1, true, PARK ? 1 : 0.6); placed++; }
@@ -1356,17 +1388,112 @@ function putPerson(n, p, coarse) {
   return pN;
 }
 
+// --------------------------------------------------------------------------------------------------------- 6b. now and then, a ghost
+// Once in a while, somewhere the eye is not looking, a shadow stands: beside the trunk of the spirit tree, peering round it; across the
+// water, by an old chedi or on the far bank, beckoning (กวักมือ: the arm held out, the hand flapping down toward itself); at the sea's edge.
+// It waits to be seen. Looked at for a moment, or come close to, it fades away (in a stipple of dots: section 1's fsBlock, material 9).
+// A spot: x, z, y, pose ('peek' | 'beckon'), how far off it may be seen from [d0, d1], how near the middle of the view it must come (cosine).
+const GSPOT = [];
+if (SPIRIT) GSPOT.push({ tree: true, pose: 'peek', d0: 9, d1: 48, look: 0.9, s: 1 });
+if (PL.far === 'ruins') for (const [x, dz] of [[4, 8], [-62, 7]]) { const z = farZ(x) + dz; GSPOT.push({ x, z, y: ground(x, z), pose: 'beckon', d0: 22, d1: 120, look: 0.965, s: 1.25 }); }
+else if (!FLOW) for (const x of [-24, 18]) { let z = farZ(x) + 2; while (ground(x, z) < WL + 0.15 && z < farZ(x) + 12) z += 0.5; GSPOT.push({ x, z, y: ground(x, z), pose: 'beckon', d0: 20, d1: 110, look: 0.965, s: 1.1 }); }
+else if (SEA) for (const x of [-32, 28]) GSPOT.push({ x, z: 55.5, y: WL - 0.45, pose: 'beckon', d0: 9, d1: 70, look: 0.95, s: 1.05 });
+else for (const x of [-52, 52]) GSPOT.push({ x, z: 43.6, y: ground(x, 43.6), pose: 'beckon', d0: 9, d1: 60, look: 0.94, s: 1 });
+const GHOST = { g: null, next: 60 + Math.random() * 90, n: 0 };
+const seenAt = (g, ex, ey, ez, f) => { const dx = g.x - ex, dy = g.y + 1.2 * g.s - ey, dz = g.z - ez, d = hypot(dx, dy, dz) || 1; return (dx * f[0] + dy * f[1] + dz * f[2]) / d; };
+function ghostSpawn(sp, ex, ez) {
+  const g = { ...sp, a: 1, seen: 0, t0: time, gone: -1, tone: 0, yaw: 0, wait: rnd(10, 18), life: sp.pose === 'peek' ? rnd(0.5, 1.1) : rnd(1.6, 2.6) };
+  if (sp.tree) {      // beside the trunk, a little back from it on the far side; it slips behind the trunk as it goes
+    const T = SPIRIT, dx = T.x - ex, dz = T.z - ez, dd = hypot(dx, dz) || 1, ux = dx / dd, uz = dz / dd, sd = Math.random() < 0.5 ? -1 : 1, o = T.rr + 0.3;
+    g.x = T.x - uz * sd * o + ux * 0.25; g.z = T.z + ux * sd * o + uz * 0.25; g.hx = T.x + ux * (T.rr + 0.45); g.hz = T.z + uz * (T.rr + 0.45); g.y = surf(g.x, g.z);
+  }
+  return g;
+}
+function ghostTick(dt, ex, ey, ez, f) {
+  let g = GHOST.g;
+  if (!g) {
+    if (!started || MODAL || time < GHOST.next || !GSPOT.length) return;
+    // a spot at the right distance that the eye is not on just now, so that it is already there when one turns to it
+    const can = GSPOT.filter((s) => { const q = s.tree ? SPIRIT : s, d = hypot(q.x - ex, q.z - ez); return d > s.d0 * 1.3 && d < s.d1 && seenAt({ x: q.x, y: q.y || 0, z: q.z, s: 1 }, ex, ey, ez, f) < 0.45; });
+    if (!can.length || Math.random() < 0.5) { GHOST.next = time + rnd(4, 15); return; }      // (and only now and then: it is not there to be shown)
+    g = GHOST.g = ghostSpawn(can[floor(Math.random() * can.length)], ex, ez);
+  }
+  const d = hypot(g.x - ex, g.z - ez);
+  if (g.gone < 0) {
+    g.yaw = atan2(ex - g.x, ez - g.z);      // it faces whoever is looking
+    if (g.stare) {      // the one stared up out of the dark: it comes slowly, stays while the walker keeps still and keeps looking, and goes
+      g.a = min(1, g.a + dt / 3.5); g.seen += dt;
+      if (g.seen > g.life || P.v > 0.6 || (g.a >= 1 && seenAt(g, ex, ey, ez, f) < 0.75)) { g.gone = time; g.a0 = g.a; }
+    }
+    else if (seenAt(g, ex, ey, ez, f) > g.look - 0.12 && d < g.d1) g.seen += dt;      // (caught at the edge of the eye is enough)
+    if (!g.stare && (g.seen > g.life || (d < g.d0 && g.seen > 0) || d < g.d0 * 0.6)) { g.gone = time; g.a0 = 1; if (sndOK()) { const t = AC.currentTime; burst(t, 1.4, 'bandpass', 700, 160, 2.5, 0.02); } }
+    else if (!g.stare && time - g.t0 > g.wait && seenAt(g, ex, ey, ez, f) < 0.3) GHOST.g = null;      // never seen: it was never there
+  } else {
+    const k = (time - g.gone) / 0.9; g.a = (g.a0 ?? 1) * (1 - k);
+    if (g.tree) { const m = min(1, k * 1.4); g.x = mix(g.x, g.hx, m * 0.2); g.z = mix(g.z, g.hz, m * 0.2); }
+    if (k >= 1) GHOST.g = null;
+  }
+  if (!GHOST.g) { GHOST.next = time + rnd(90, 240); GHOST.n++; }
+}
+// Across a pond (Sukhothai, Hat Yai): stand or sit still a long while, looking over the water to the far bank, and a shadow comes up there
+// out of the dark - a little to one side of where the eye rests - and stands, or beckons, until the walker stirs or looks away.
+const STARE = { t: 0, need: 14 + Math.random() * 10, next: 0 };
+function stareTick(dt, ex, ey, ez, f) {
+  if (FLOW || !started || MODAL || GHOST.g || time < STARE.next) { STARE.t = 0; return; }
+  const fh = hypot(f[0], f[2]) || 1, across = P.z > 15 && f[2] / fh > 0.7 && f[1] > -0.3 && f[1] < 0.35;
+  STARE.t = P.v < 0.3 && across ? STARE.t + dt : max(0, STARE.t - dt * 3);
+  if (STARE.t < STARE.need) return;
+  const side = (Math.random() < 0.5 ? -1 : 1) * rnd(0.1, 0.2), dx = f[0] / fh, dz = f[2] / fh, c = cos(side), sn = sin(side), ux = dx * c - dz * sn, uz = dx * sn + dz * c;
+  for (let t = 15; t < 140; t += 0.5) {      // along that line to the far bank, a little up from the water
+    const x = ex + ux * t, z = ez + uz * t;
+    if (abs(x) > 110) break;
+    if (z > farZ(x) + 3 && ground(x, z) > WL + 0.12) {
+      GHOST.g = { x, z, y: ground(x, z), pose: Math.random() < 0.5 ? 'beckon' : 'stand', stare: true, d0: 0, d1: 200, look: 0.9, s: 1.25, a: 0, seen: 0, t0: time, gone: -1, tone: 0, yaw: 0, wait: 99, life: rnd(8, 13) };
+      break;
+    }
+  }
+  STARE.t = 0; STARE.need = rnd(16, 26); STARE.next = time + rnd(90, 180);
+}
+// the ghost, of blocks as the people are: a long pha sin to the ground and no feet seen, the head bowed, long hair down the back and over
+// the shoulders, two faint red eyes; it hangs and sways a little above where it stands
+function putGhost(n, g) {
+  pN = n; bP = g; bCy = cos(g.yaw); bSy = sin(g.yaw); bY = g.y + 0.04 + 0.03 * sin(time * 1.3);
+  const a = max(0, g.a), M = 9, sw = 0.04 * sin(time * 0.9);
+  blk(0, 0.42, 0, 0.29, 0.86, 0.21, sw * 0.3, M, a);            // the pha sin, below the knee to the ground
+  blk(0, 0.98, 0, 0.32, 0.32, 0.22, sw * 0.5, M, a);            // the hips
+  blk(0, 1.32, 0.02, 0.34, 0.42, 0.2, 0.1 + sw, M, a);          // the chest, a little stooped
+  blk(0, 1.57, 0.06, 0.1, 0.1, 0.1, 0.25, M, a);
+  const hY = 1.72, hZ = 0.11, hp = 0.4;
+  blk(0, hY, hZ, 0.26, 0.26, 0.25, hp, M, a, 0, 1);            // the head, bowed (flag 1: its eyes)
+  blk(0, hY + 0.13, hZ - 0.03, 0.29, 0.07, 0.28, hp, M, a);    // the hair: the crown, the back down to the waist, a fall over each shoulder
+  blk(0, 1.32, -0.13, 0.3, 0.8, 0.05, 0.05, M, a);
+  for (const sd of [-1, 1]) blk(sd * 0.115, 1.5, 0.16, 0.06, 0.42, 0.07, 0.3, M, a);
+  for (const sd of [-1, 1]) {
+    const beck = g.pose === 'beckon' && sd > 0;
+    const ta = beck ? 1.3 : 0.06 + 0.04 * sin(time * 0.7 + sd), tf = beck ? 1.45 + 0.12 * sin(time * 4.2) : ta + 0.12;
+    limb(sd * 0.2, 1.52, 0.03, ta, 0.29, 0.085, 0.09, M, a);
+    limb(J[0], J[1], J[2], tf, 0.26, 0.07, 0.075, M, a);
+    const hpit = beck ? tf + 0.6 + 0.6 * sin(time * 4.2) : tf, hy = J[1] - cos(hpit) * 0.06, hz = J[2] + sin(hpit) * 0.06;
+    blk(J[0], hy, hz, 0.075, 0.13, 0.035, -hpit, M, a);         // the hand: beckoning, flapping down toward itself, palm down
+  }
+  return pN;
+}
+
 // --------------------------------------------------------------------------------------------------------- sound
 // All synthesised: crickets, the water lapping at the piles, a little wind, the music of the fair, footsteps (on earth, on boards),
-// the temple bell when a wish is made, the thud and crackle of fireworks. M mutes.
-let AC = null, SND = null, mute = false;
+// the temple bell when a wish is made, the thud and crackle of fireworks. The music and the sounds are turned off apart: M the music, N the
+// sounds (kept from one visit to the next).
+let AC = null, SND = null;
+const MUTE = (() => { try { return { music: false, sfx: false, ...JSON.parse(localStorage.getItem('lk.mute') || '{}') }; } catch (_) { return { music: false, sfx: false }; } })();
 function initSound() {
   if (AC) return; const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
-  AC = new C(); const master = AC.createGain(); master.gain.value = mute ? 0 : 0.9; master.connect(AC.destination);
+  AC = new C(); const master = AC.createGain(); master.gain.value = 0.9; master.connect(AC.destination);
+  const music = AC.createGain(), sfx = AC.createGain(); music.gain.value = MUTE.music ? 0 : 1; sfx.gain.value = MUTE.sfx ? 0 : 1; music.connect(master); sfx.connect(master);
   const nb = AC.createBuffer(1, AC.sampleRate * 5, AC.sampleRate), nd = nb.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   const noise = () => { const n = AC.createBufferSource(); n.buffer = nb; n.loop = true; n.start(0, Math.random() * 4); return n; };
-  const band = (src, type, f, q) => { const fl = AC.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const gn = AC.createGain(); gn.gain.value = 0; src.connect(fl); fl.connect(gn); gn.connect(master); return { f: fl.frequency, g: gn.gain }; };
-  SND = { master, nb, wind: band(noise(), 'bandpass', 340, 0.5), leaves: band(noise(), 'bandpass', 2600, 0.8), water: band(noise(), 'lowpass', 420, 0.3), lap: band(noise(), 'bandpass', 1400, 0.9), tCrick: 0, tNote: 0, si: 0 };
+  const band = (src, type, f, q) => { const fl = AC.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const gn = AC.createGain(); gn.gain.value = 0; src.connect(fl); fl.connect(gn); gn.connect(sfx); return { f: fl.frequency, g: gn.gain }; };
+  SND = { master, music, sfx, to: null, nb, wind: band(noise(), 'bandpass', 340, 0.5), leaves: band(noise(), 'bandpass', 2600, 0.8), water: band(noise(), 'lowpass', 420, 0.3), lap: band(noise(), 'bandpass', 1400, 0.9), tCrick: 0, tNote: 0, si: 0 };
+  fetch('audio/whisper.mp3').then((r) => r.arrayBuffer()).then((b) => AC.decodeAudioData(b)).then((buf) => { const d = buf.getChannelData(0); let e = d.length - 1; while (e > 0 && abs(d[e]) < 0.006) e--; SND.whisperBuf = buf; SND.whisperLen = min(buf.duration, (e + 1) / buf.sampleRate + 0.25); }).catch(() => { /* the whisper is made up instead: whisper() */ });      // a recorded whisper (Pixabay, Dragon Studio: ghost whisper); its length without the silence at its end
 }
 function voice(type, t0, fq, env, vol, pan = 0, bp = 0) {
   const o = AC.createOscillator(), gn = AC.createGain(); o.type = type; let last = o;
@@ -1374,19 +1501,69 @@ function voice(type, t0, fq, env, vol, pan = 0, bp = 0) {
   gn.gain.setValueAtTime(0, t0); for (const e of env) gn.gain.linearRampToValueAtTime(e[1] * vol, t0 + e[0]);
   if (bp) { const fl = AC.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = bp; fl.Q.value = 1.6; o.connect(fl); last = fl; }
   last.connect(gn); let out = gn; if (AC.createStereoPanner) { const pn = AC.createStereoPanner(); pn.pan.value = pan; gn.connect(pn); out = pn; }
-  out.connect(SND.master); const end = t0 + env[env.length - 1][0] + 0.05; o.start(t0); o.stop(end);
+  out.connect(SND.to || SND.sfx); const end = t0 + env[env.length - 1][0] + 0.05; o.start(t0); o.stop(end);
 }
 const rnd = (a, b) => a + Math.random() * (b - a);
 function cricket(t, vol) { const f = rnd(4100, 4900), pan = rnd(-1, 1), n = 3 + floor(rnd(0, 2)); for (let i = 0; i < n; i++) voice('sine', t + i * 0.034, [[0, f], [0.02, f * 1.01]], [[0.004, 1], [0.016, 0.9], [0.024, 0]], vol * 0.16, pan); }
-function burst(t, dur, type, f, f1, q, vol) {
+function burst(t, dur, type, f, f1, q, vol, pan = 0) {
   const n = AC.createBufferSource(), fl = AC.createBiquadFilter(), gn = AC.createGain(); n.buffer = SND.nb; n.loop = true; fl.type = type; fl.Q.value = q;
   fl.frequency.setValueAtTime(f, t); fl.frequency.exponentialRampToValueAtTime(f1, t + dur);
   gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(vol, t + min(0.02, dur * 0.2)); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  n.connect(fl); fl.connect(gn); gn.connect(SND.master); n.start(t, Math.random() * 3); n.stop(t + dur + 0.05);
+  n.connect(fl); fl.connect(gn); let out = gn; if (pan && AC.createStereoPanner) { const pn = AC.createStereoPanner(); pn.pan.value = pan; gn.connect(pn); out = pn; } out.connect(SND.to || SND.sfx); n.start(t, Math.random() * 3); n.stop(t + dur + 0.05);
 }
 const sndOK = () => SND && AC.state === 'running';
+// a whisper close by one ear: breath through the teeth, in syllables, the pitch of each a little different - no words, only the sound of them
+function whisper(pan) {
+  if (!sndOK()) return; let t = AC.currentTime + 0.05;
+  const bus = AC.createGain(); bus.gain.value = 1; bus.connect(SND.sfx); WH.bus = bus;      // (all of it through one gain, turned down as the walker goes away from the tree: whisperTick)
+  if (SND.whisperBuf) {      // the recording, the whole of it, in one ear (a little slower or quicker each time)
+    const len = SND.whisperLen, src = AC.createBufferSource(), gn = AC.createGain(), v = rnd(0.28, 0.36), rate = rnd(0.95, 1.03);
+    src.buffer = SND.whisperBuf; src.playbackRate.value = rate; const end = t + len / rate;
+    gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + 0.05); gn.gain.setValueAtTime(v, end - 0.4); gn.gain.linearRampToValueAtTime(0, end);
+    src.connect(gn); let out = gn; if (AC.createStereoPanner) { const pn = AC.createStereoPanner(); pn.pan.value = pan; gn.connect(pn); out = pn; }
+    out.connect(bus); src.start(t, 0, len); return;
+  }
+  const n = 5 + floor(rnd(0, 6)), vol = rnd(0.05, 0.08);
+  for (let i = 0; i < n; i++) {
+    const d = rnd(0.1, 0.3), f = rnd(1300, 3000), sss = Math.random() < 0.2, src = AC.createBufferSource(), fl = AC.createBiquadFilter(), hp = AC.createBiquadFilter(), gn = AC.createGain();
+    src.buffer = SND.nb; src.loop = true; fl.type = sss ? 'highpass' : 'bandpass'; fl.Q.value = sss ? 0.7 : 3.5;
+    fl.frequency.setValueAtTime(sss ? 4500 : f, t); fl.frequency.linearRampToValueAtTime(sss ? 5200 : f * rnd(0.7, 1.35), t + d);
+    hp.type = 'highpass'; hp.frequency.value = 450;
+    const v = vol * (sss ? 0.5 : 1) * rnd(0.6, 1); gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + d * 0.3); gn.gain.linearRampToValueAtTime(v * 0.6, t + d * 0.7); gn.gain.linearRampToValueAtTime(0, t + d);
+    src.connect(fl); fl.connect(hp); hp.connect(gn); let out = gn;
+    if (AC.createStereoPanner) { const pn = AC.createStereoPanner(); pn.pan.value = clamp(pan + rnd(-0.05, 0.05), -1, 1); gn.connect(pn); out = pn; }
+    out.connect(bus); src.start(t, Math.random() * 4); src.stop(t + d + 0.05);
+    t += d + (Math.random() < 0.3 ? rnd(0.18, 0.45) : rnd(0.02, 0.07));
+  }
+}
+// stand still by the tree with the three-coloured cloth long enough and something whispers in one ear (then not again for a while)
+const WH = { still: 0, need: 0, next: 0, bus: null };
+function whisperTick(dt) {
+  if (!SPIRIT) return;
+  const d = hypot(P.x - SPIRIT.x, P.z - SPIRIT.z);
+  if (WH.bus && sndOK()) WH.bus.gain.setTargetAtTime(1 - sm(6, 20, d), AC.currentTime, 0.15);      // walking away, the whisper falls away behind (gone by 20 m)
+  if (!started || MODAL || P.v > 0.3 || d > 6) { WH.still = 0; return; }
+  if (!WH.need) WH.need = rnd(9, 16);
+  WH.still += dt;
+  if (WH.still > WH.need && time > WH.next) { whisper(Math.random() < 0.5 ? -0.95 : 0.95); if (SPIRIT.out < 0) { SPIRIT.out = time + 1.2; SPIRIT.back = time + rnd(14, 26); } WH.still = 0; WH.need = rnd(15, 35); WH.next = time + 20; }
+}
 function bell(vol) { if (!sndOK()) return; const t = AC.currentTime + 0.05; for (const [m, a, d] of [[1, 1, 6], [2.0, 0.5, 4.5], [2.76, 0.35, 3.2], [4.1, 0.2, 2], [5.4, 0.12, 1.2]]) voice('sine', t, [[0, 196 * m], [d, 196 * m * 0.998]], [[0.008, a], [0.25, a * 0.55], [d, 0]], vol * 0.5, 0.2); }
-function footstep(wood) { if (!sndOK()) return; const t = AC.currentTime + 0.01; if (wood) { voice('sine', t, [[0, rnd(120, 150)], [0.09, 80]], [[0.004, 1], [0.1, 0]], 0.09); burst(t, 0.07, 'bandpass', 500, 300, 1, 0.05); } else burst(t, 0.09, 'lowpass', rnd(700, 1100), 300, 0.5, 0.045); }
+function footstep(wood, dl = 0.01, v = 1, pan = 0, dull = 1) { if (!sndOK()) return; const t = AC.currentTime + dl; if (wood) { voice('sine', t, [[0, rnd(120, 150)], [0.09, 80]], [[0.004, 1], [0.1, 0]], 0.09 * v, pan); burst(t, 0.07, 'bandpass', 500 * dull, 300 * dull, 1, 0.05 * v, pan); } else burst(t, 0.09, 'lowpass', rnd(700, 1100) * dull, 300 * dull, 0.5, 0.045 * v, pan); }
+// footsteps behind: walking alone for a while, now and then someone walks behind - half a step after each of the walker's own, a little
+// muffled, never quite in the same place; stop, and they stop too (one more step, then nothing). Turn round: no one.
+const FOL = { on: false, until: 0, next: 25 + Math.random() * 30, alone: 0, stop: -1, pan: 0 };
+function followTick(dt) {
+  if (!started || MODAL || ST.sit) { FOL.on = false; FOL.alone = 0; return; }
+  if (!FOL.on) {
+    const alone = !PPL.some((q) => (q.x - P.x) * (q.x - P.x) + (q.z - P.z) * (q.z - P.z) < 81);      // (no one within 9 m)
+    FOL.alone = alone && P.v > 1 ? FOL.alone + dt : max(0, FOL.alone - dt * (P.v > 1 ? 0.5 : 1));
+    if (FOL.alone > 4 && time > FOL.next) { if (Math.random() < 0.7) { FOL.on = true; FOL.until = time + rnd(6, 11); FOL.stop = -1; FOL.pan = rnd(-0.35, 0.35); } else FOL.next = time + rnd(15, 30); }
+    return;
+  }
+  if (P.v < 0.3) { if (FOL.stop < 0) FOL.stop = time; } else FOL.stop = -1;
+  if ((FOL.stop >= 0 && time - FOL.stop > 1.5) || time > FOL.until + 4) { FOL.on = false; FOL.alone = 0; FOL.next = time + rnd(120, 240); }
+}
+const followStep = (wood) => { if (FOL.on && time < FOL.until) { FOL.pan = clamp(FOL.pan + rnd(-0.12, 0.12), -0.45, 0.45); footstep(wood, 0.37 / max(P.v, 0.8) + rnd(-0.03, 0.03), 1.4, FOL.pan, 0.8); } };
 const strike = () => { if (sndOK()) burst(AC.currentTime, 0.25, 'highpass', 2500, 6000, 0.7, 0.03); };      // a match struck
 function fwSound(rise, late, pan) {
   if (!sndOK()) return; const t0 = AC.currentTime + 0.02, t = t0 + rise + late, big = rnd(0.75, 1.15);
@@ -1405,12 +1582,13 @@ const NOTES = `ม, ม ม ม ร ด ร ม | - - - x ซ ม ร ด | ล 
   ด ร ม ซ ซ ม ซ ล | - - - x ด' ล ซ ม | ร ด ร ด - - - x`;
 const DRUMS = true, STEP = 0.288, DO = 293.66, HOLD = -200, REST = -100, SEMI = { 'ด': 0, 'ร': 2, 'ม': 4, 'ฟ': 5, 'ซ': 7, 'ล': 9, 'ท': 11 };
 const TUNE = NOTES.split(/[\s|]+/).filter(Boolean).map((k) => (k === '-' ? HOLD : !(k[0] in SEMI) ? REST : SEMI[k[0]] + 12 * ((k.match(/['ํ]/g) || []).length - (k.match(/[,ฺ]/g) || []).length)));
-let bgm = null, bgmOK = false;
+let bgm = null, bgmOK = false, HUSH = 0;
 function startMusic() {
   try { bgm = new Audio('loykrathong.mp3'); bgm.loop = true; bgm.volume = 0; bgm.addEventListener('error', () => { bgmOK = false; });
     bgm.addEventListener('canplay', () => { bgm.play().then(() => { bgmOK = true; }).catch(() => { bgmOK = false; }); }, { once: true }); bgm.load(); } catch (_) { /* no file: the page's own tune plays */ }
 }
-function ramwong(t, i, v) {
+function ramwong(t, i, v) { SND.to = SND.music; try { ramwong0(t, i, v); } finally { SND.to = null; } }      // (the tune's notes go to the music)
+function ramwong0(t, i, v) {
   const N = TUNE.length, s = i % N, b = i % 8, n = TUNE[s];
   if (DRUMS) {
     if (b % 4 === 0) voice('sine', t, [[0, 3100], [0.5, 3080]], [[0.003, 1], [0.08, 0.35], [0.5, 0]], 0.02 * v, 0.3);
@@ -1432,12 +1610,18 @@ function updateSound() {
   const gs = vnoise(time * 0.12, 3.3), river = clamp(1 - (bankZ(P.x) - P.z) / 60, 0.12, 1) * (FLOW ? 1 : 0.6);
   set(SND.wind.g, 0.003 + 0.007 * gs, 0.6); set(SND.wind.f, 200 + 120 * gs, 0.6); set(SND.leaves.g, 0.002 + 0.004 * gs * gs, 0.5);
   set(SND.water.g, 0.05 * river * river * (0.75 + 0.25 * sin(time * 0.6))); set(SND.lap.g, 0.012 * river * river * Math.pow(0.5 + 0.5 * sin(time * 1.7 + sin(time * 0.4) * 2), 3));
-  if (t > SND.tCrick) { cricket(t + 0.03, 0.55); SND.tCrick = t + rnd(0.25, 1.2); }
+  // near the spirit tree, or while a ghost is somewhere about, the crickets fall quiet (slowly, so that it is felt more than heard)
+  const hush = max(SPIRIT ? 1 - sm(7, 22, hypot(P.x - SPIRIT.x, P.z - SPIRIT.z)) : 0, GHOST.g && GHOST.g.gone < 0 ? 0.85 : 0);
+  HUSH += (hush - HUSH) * (hush > HUSH ? 0.007 : 0.018);      // (once a frame: the hush comes on over a few seconds, lifts sooner)
+  if (t > SND.tCrick) { if (Math.random() > HUSH) cricket(t + 0.03, 0.55 * (1 - HUSH * 0.8)); SND.tCrick = t + rnd(0.25, 1.2); }
   const vm = (1 - 0.8 * ST.eyes) * (0.6 + 0.4 / (1 + hypot(P.x - 12, P.z + 22) / 18));
-  if (bgmOK) bgm.volume = mute ? 0 : clamp(0.5 * vm, 0, 1);
+  if (bgmOK) bgm.volume = MUTE.music ? 0 : clamp(0.5 * vm, 0, 1);
   else { if (SND.tNote < t - 1) SND.tNote = t + 0.1; while (SND.tNote < t + 0.2) { ramwong(SND.tNote, SND.si++, vm); SND.tNote += STEP; } }
 }
-const setMute = (m) => { mute = m; if (SND) SND.master.gain.setTargetAtTime(mute ? 0 : 0.9, AC.currentTime, 0.05); $('bMute').classList.toggle('off', mute); };
+const setMute = (k, m) => { MUTE[k] = m; if (SND) SND[k].gain.setTargetAtTime(m ? 0 : 1, AC.currentTime, 0.05);
+  try { localStorage.setItem('lk.mute', JSON.stringify(MUTE)); } catch (_) { /* not kept */ } showMute(); };
+const showMute = () => { for (const [id, k] of [['bMusic', 'music'], ['bSfx', 'sfx']]) { const b = $(id); b.classList.toggle('off', MUTE[k]); b.setAttribute('aria-pressed', String(!MUTE[k])); } };
+showMute();
 
 // --------------------------------------------------------------------------------------------------------- the walker
 const keys = new Set(), K = (c) => (keys.has(c) ? 1 : 0);
@@ -1471,7 +1655,7 @@ function walk(dt) {
     if (canStand(P.x + dx, P.z + dz)) { P.x += dx; P.z += dz; sp = v; } else if (canStand(P.x + dx, P.z)) { P.x += dx; sp = abs(dx) / dt; } else if (canStand(P.x, P.z + dz)) { P.z += dz; sp = abs(dz) / dt; }
   }
   P.v += (sp - P.v) * min(1, dt * 8); P.bob += P.v * dt * 2.7; P.dist += sp * dt;
-  if (P.dist > 0.74) { P.dist = 0; footstep(!BEACH && P.z > PIER.z0 && abs(P.x) < 3.2); }
+  if (P.dist > 0.74) { P.dist = 0; const wd = !BEACH && P.z > PIER.z0 && abs(P.x) < 3.2; footstep(wd); followStep(wd); }
   if (ST.sit) { if (l > 0.5 && !MODAL) standUp(); else { P.y += (ST.sit.y + 0.78 - P.y) * min(1, dt * 6); return; } }
   P.y += (surf(P.x, P.z) + 1.62 - P.y) * min(1, dt * 10);
 }
@@ -1563,7 +1747,8 @@ $('wishF').addEventListener('submit', (e) => {
 const canvas = GPU.canvas;
 addEventListener('keydown', (e) => {
   if (!started || MODAL) return; initSound();
-  if (e.code === 'KeyM' && !e.repeat) setMute(!mute);
+  if (e.code === 'KeyM' && !e.repeat) setMute('music', !MUTE.music);
+  if (e.code === 'KeyN' && !e.repeat) setMute('sfx', !MUTE.sfx);
   if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
   if (e.repeat) return; keys.add(e.code);
   if (e.code === 'KeyE' && ACT.e) ACT.e();
@@ -1577,7 +1762,8 @@ addEventListener('pointerup', () => { drag = false; });
 addEventListener('mousemove', (e) => { if (!started || MODAL || TCH.look >= 0 || TCH.move >= 0 || !(drag || locked())) return; P.yaw -= e.movementX * 0.0026; P.pit = clamp(P.pit - e.movementY * 0.0026, -1.3, 1.3); lookT = time; });
 $('go').addEventListener('click', () => { started = true; initSound(); startMusic(); document.body.classList.add('play'); $('intro').classList.add('off'); $('goal').classList.add('on'); $('dot').classList.add('on'); canvas.focus(); lockMouse(); });
 $('bMap').addEventListener('click', () => { if (document.pointerLockElement) document.exitPointerLock(); $('ldTitle').textContent = 'แผนที่ประเทศไทย'; $('ldSub').textContent = 'เลือกสถานที่ถัดไป'; LD.root.classList.remove('off'); LD.step('กำลังกลับไปที่แผนที่', 50).then(() => { location.href = 'index.html#' + PL.id; }); });
-$('bMute').addEventListener('click', () => { initSound(); setMute(!mute); });
+$('bMusic').addEventListener('click', () => { initSound(); setMute('music', !MUTE.music); });
+$('bSfx').addEventListener('click', () => { initSound(); setMute('sfx', !MUTE.sfx); });
 // Touch: a finger put down on the left of the screen is a stick (it appears under the finger; push it to walk, to the rim to hurry), a finger
 // on the right looks round. The button does what E does. All of it shows itself on a phone, or the first time the screen is touched.
 const pad = $('pad'), knob = pad.firstElementChild, bUse = $('bUse');
@@ -1710,6 +1896,8 @@ function frame(now) {
   mul(UB, mP, mV); VP.set(UB.subarray(0, 16)); EYE[0] = ex; EYE[1] = ey; EYE[2] = ez;
   whatNow(eye, f); if (started && !MODAL && ST.rel < 0 && !ST.auto) shopTip();
   movePeople(dt, ex, ez);
+  ghostTick(dt, ex, ey, ez, f); stareTick(dt, ex, ey, ez, f);
+  whisperTick(dt); followTick(dt);
 
   // ---- everything that moves: tubes into DYN, patches of light on the water into GLW, lamps into dynLamps
   let nD = 0, nG = 0; dynLamps.length = 0;
@@ -1747,6 +1935,7 @@ function frame(now) {
       if (q.lit && d < 25 && nKL++ < 3) dynLamps.push({ x: kx, y: ky + 0.3, z: kz, r: 4, c: CANDLE, k: 0.4, i: 0.5 * fl });
     }
   }
+  const nPpl = nP; if (GHOST.g && GHOST.g.a > 0 && nP < 140 * 20 - 40) nP = putGhost(nP, GHOST.g);      // (the ghost casts no shadow)
   Q.writeBuffer(partB, 0, PART, 0, nP * 12);
   // the krathong in the hands, or on its way down to the water
   const sway = sin(P.bob) * 0.012 * min(1, P.v / 2), hold = (fw, dn, sd) => [ex + f[0] * fw - u[0] * dn + r[0] * (sway + sd), ey + f[1] * fw - u[1] * dn + r[1] * sd, ez + f[2] * fw - u[2] * dn + r[2] * (sway + sd)];
@@ -1785,6 +1974,13 @@ function frame(now) {
   }
   // incense smouldering in the altar's pot
   for (const s of INC) { if (nD > 8980) break; const tx = s[0] + s[2], tz = s[1] + s[3], ty = ALT_POT[1] + 0.33; DYN.set([s[0], ALT_POT[1], s[1], 0.003, tx, ty, tz, 0.0025, -1, 16], nD * 10); nD++; DYN.set([tx, ty, tz, 0.0045, tx, ty + 0.012, tz, 0.001, -1, 9], nD * 10); nD++; }
+  // the candles under the spirit tree: they gutter and go out when something whispers, and some while after light again by themselves
+  if (SPIRIT) {
+    const S = SPIRIT, k = S.out < 0 ? 1 : time < S.out ? 0.25 + 0.75 * vnoise(time * 22, 4.1) * (1 - (time - S.out + 1.2) / 1.2 * 0.6) : time < S.back ? 0 : min(1, (time - S.back) / 1.5);
+    if (S.out >= 0 && time > S.back + 1.5) S.out = -1;
+    S.lit = k; S.lamp.on = k;
+    if (k > 0.02) for (const q of S.fl) { if (nD > 8985) break; const h = 0.04 * k * (0.85 + 0.3 * vnoise(time * 9 + q[2] * 5, 1.3)); DYN.set([q[0], q[1], q[2], 0.012 * k, q[0], q[1] + h, q[2], 0.001, -1, 9], nD * 10); nD++; }
+  }
   // lanterns let go from the lawn and from places round about, now and then (at Yi Peng, all the time)
   if (PL.sky > 0 && (launch.next === undefined || time > launch.next)) {
     launch.next = time + rnd(LAUNCH_GAP[0], LAUNCH_GAP[1]); const s = Math.random();
@@ -1808,7 +2004,7 @@ function frame(now) {
   let flash = 0; for (let i = 0; i < 2; i++) { const a = time - FWK[i].t0; UB.set([FWK[i].az, FWK[i].el, a > 0 && a < 3.4 ? a : 0, FWK[i].seed], 84 + i * 4); if (a > 0 && a < 1.2) flash += (1 - a / 1.2) * 0.012; }
   // the lamps: the forty that matter most where the eye is
   lampPick.length = 0;
-  for (const l of LAMPS) { const d2 = (l.x - ex) * (l.x - ex) + (l.z - ez) * (l.z - ez); l.s = l.r * l.r / (60 + d2); l.i = 1 + (l.fl ? l.fl * (vnoise(time * 6 + l.ph, l.ph) - 0.5) * 2 : 0); lampPick.push(l); }
+  for (const l of LAMPS) { const d2 = (l.x - ex) * (l.x - ex) + (l.z - ez) * (l.z - ez); l.s = l.r * l.r / (60 + d2); l.i = (1 + (l.fl ? l.fl * (vnoise(time * 6 + l.ph, l.ph) - 0.5) * 2 : 0)) * l.on; lampPick.push(l); }
   for (const l of dynLamps) { l.s = 9; lampPick.push(l); }
   lampPick.sort((a, b) => b.s - a.s);
   const nLamp = min(NL, lampPick.length);
@@ -1840,7 +2036,7 @@ function frame(now) {
       if (c.nBox) { p.setPipeline(pBoxS); p.setVertexBuffer(0, vbCube); p.setVertexBuffer(1, c.boxB); p.setIndexBuffer(ibCube, 'uint16'); p.drawIndexed(36, c.nBox); }
       if (c.nLeaf) { const l = LOW || hypot(c.x - ex, c.z - ez) > 120 ? 2 : 1; p.setPipeline(l === 2 ? pLeafS2 : pLeafS); p.setVertexBuffer(0, c.leafB); p.draw(10, floor(c.nLeaf / LODN[l])); }
     }
-    if (nP && !LOW) { p.setPipeline(pPartS); p.setVertexBuffer(0, vbCube); p.setVertexBuffer(1, partB); p.setIndexBuffer(ibCube, 'uint16'); p.drawIndexed(36, nP); }
+    if (nPpl && !LOW) { p.setPipeline(pPartS); p.setVertexBuffer(0, vbCube); p.setVertexBuffer(1, partB); p.setIndexBuffer(ibCube, 'uint16'); p.drawIndexed(36, nPpl); }
     p.end();
   }
   // 2. the picture, in HDR
@@ -1915,11 +2111,11 @@ await LD.step('พร้อมแล้ว', 100);
 LD.done(); $('intro').classList.remove('off');
 requestAnimationFrame(tick);
 // hot reload (bun run dev): before the page loads itself again it puts aside where the walker stands, and takes it up again here
-window.liveKeep = () => { try { sessionStorage.setItem('lk.live', JSON.stringify({ loc: PL.id, x: P.x, z: P.z, yaw: P.yaw, pit: P.pit, started, mute })); } catch (_) { /* not kept */ } };
+window.liveKeep = () => { try { sessionStorage.setItem('lk.live', JSON.stringify({ loc: PL.id, x: P.x, z: P.z, yaw: P.yaw, pit: P.pit, started })); } catch (_) { /* not kept */ } };
 try {
   const k = JSON.parse(sessionStorage.getItem('lk.live') || 'null'); sessionStorage.removeItem('lk.live');
-  if (k && k.loc === PL.id) { if (canStand(k.x, k.z)) { P.x = k.x; P.z = k.z; P.y = surf(P.x, P.z) + 1.62; } P.yaw = k.yaw; P.pit = k.pit; if (k.mute) setMute(true); if (k.started) $('go').click(); }
+  if (k && k.loc === PL.id) { if (canStand(k.x, k.z)) { P.x = k.x; P.z = k.z; P.y = surf(P.x, P.z) + 1.62; } P.yaw = k.yaw; P.pit = k.pit; if (k.started) $('go').click(); }
 } catch (_) { /* start as usual */ }
-window.__dbg = { PL, P, ST, K_DISP, L_DISP, ALTAR, get STALLK() { return STALLK; }, get STALLL() { return STALLL; }, PPL, TCH, MOBILE, LOW, NL, RK, SL, LAMPS, chunks, AT, bubs, INC, start: () => $('go').click(), key: (c, on) => { if (on) keys.add(c); else keys.delete(c); },
+window.__dbg = { STARE, FOL, get hush() { return HUSH; }, WH, whisper, get snd() { return SND; }, GHOST, GSPOT, SPIRIT, ghost: (i = 0) => { GHOST.g = ghostSpawn(GSPOT[i], P.x, P.z); return GHOST.g; }, PL, P, ST, K_DISP, L_DISP, ALTAR, get STALLK() { return STALLK; }, get STALLL() { return STALLL; }, PPL, TCH, MOBILE, LOW, NL, RK, SL, LAMPS, chunks, AT, bubs, INC, start: () => $('go').click(), key: (c, on) => { if (on) keys.add(c); else keys.delete(c); },
   act: () => ACT, press: () => ACT.e && ACT.e(), wish: (t) => { wishText.value = t; $('wishF').requestSubmit(); }, get modal() { return MODAL; }, get fps() { return fps; }, get tris() { return tris; }, get time() { return time; } };
 })();

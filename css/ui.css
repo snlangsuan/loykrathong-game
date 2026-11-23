@@ -50,3 +50,12 @@ button { font-family: inherit; }
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(2deg); } }
 @keyframes flick { from { transform: scaleY(1) translateX(0); opacity: .95; } to { transform: scaleY(1.12) translateX(.6px); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ld-k .b, .ld-k .f { animation: none; } .loading { transition: none; } }
+
+/* the icons in the counters (js/counter.js): drawn in lines, the body softly filled, the flame lit */
+.ck, .cl { display: inline-flex; align-items: center; gap: 5px; }
+.ci { width: 17px; height: 17px; flex: none; fill: none; stroke: var(--gold2, #f3c873); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.ci .bd { fill: rgba(243, 200, 115, .22); }
+.ci .fl { fill: #ffb347; stroke: none; }
+/* small line icons in buttons and pointers */
+.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ico.solid { fill: currentColor; stroke: none; }

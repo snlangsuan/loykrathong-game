@@ -65,6 +65,7 @@ body.picked #hintMap { opacity: 0; }
 #card.on { transform: translate(0, -50%); opacity: 1; pointer-events: auto; }
 #cClose { position: absolute; right: 12px; top: 12px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .05); color: var(--dim); font: 400 14px/1 var(--font); cursor: pointer; }
 #cClose:hover { color: var(--gold); border-color: var(--gold); }
+#cClose { display: grid; place-items: center; padding: 0; }
 .c-eyebrow { color: var(--gold); font-size: 13px; letter-spacing: .06em; padding-right: 36px; }
 #card h2 { margin: 8px 0 4px; padding-top: .25em; font: 700 40px/1.6 var(--deco); color: var(--gold2); }
 .c-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
