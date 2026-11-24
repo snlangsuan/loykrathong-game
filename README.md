@@ -3,7 +3,7 @@
 เกมเดินเที่ยวงานลอยกระทงคืนวันเพ็ญ เลือกสถานที่จากแผนที่ประเทศไทย ซื้อกระทงหรือโคม จุดธูปเทียน อธิษฐาน แล้วลอยกระทงหรือปล่อยโคม
 คำอธิษฐานของทุกคนลอยอยู่บนกระทงและโคมในเกมเป็นบอลลูนข้อความ
 
-วาดด้วย WebGPU แบบเดียวกับโปรเจกต์ Endless (`js/engine.js` คัดลอกมาจาก `endless-driver/engine/engine.js`) ทุกอย่างบนจอวาดด้วยโค้ด ไม่มีไฟล์ภาพหรือโมเดล ไม่มีขั้นตอน build
+วาดด้วย WebGPU แบบเดียวกับโปรเจกต์ Endless (`js/engine.js` คัดลอกมาจาก `endless-driver/engine/engine.js`) ทุกอย่างบนจอวาดด้วยโค้ด ไม่มีไฟล์ภาพหรือโมเดล (ยกเว้นภาพปก `img/cover.jpg` สำหรับแชร์ลิงก์) ไม่มีขั้นตอน build
 
 ## วิธีเปิด
 
@@ -16,6 +16,7 @@ bun run dev        # ตอนพัฒนา: hot reload
 
 แล้วเปิด http://localhost:8080 ต้องใช้เบราว์เซอร์ที่รองรับ WebGPU (Chrome หรือ Edge รุ่นปัจจุบัน) และต้องเปิดผ่านเซิร์ฟเวอร์ เปิดแบบ `file://` ไม่ได้
 วางบน GitHub Pages ได้ทันที (เผยแพร่จาก root)
+meta tag สำหรับแชร์ลิงก์ (`og:*`, `twitter:*`) ใน `index.html` และ `play.html` ใช้ที่อยู่เต็ม https://snlangsuan.github.io/loykrathong-game/ ถ้าย้ายโดเมนต้องแก้ตรงนั้นด้วย
 
 ## สถานที่
 
@@ -47,6 +48,7 @@ js/wishes.js                         ดึงและส่งคำอธิ�
 js/firebase-config.js                ตั้งค่า Firebase
 js/loader.js, css/ui.css             หน้า loading และสไตล์ที่ใช้ร่วมกัน
 audio/whisper.mp3                    เสียงกระซิบข้างต้นไม้ผ้าสามสี
+img/cover.jpg                        ภาพปกตอนแชร์ลิงก์ใน social media (1200×630 จับภาพจากฉากเชียงใหม่ในเกม)
 firebase/database.rules.json         กฎของ Realtime Database
 ```
 
